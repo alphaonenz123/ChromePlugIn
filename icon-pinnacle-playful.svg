@@ -1,0 +1,30 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle (light Pinnacle color) -->
+  <circle cx="64" cy="64" r="62" fill="#F3FAFB" stroke="#05A3DD" stroke-width="3"/>
+  
+  <!-- Chat bubble body (Pinnacle blue) -->
+  <path d="M 32 40 Q 32 28 44 28 L 84 28 Q 96 28 96 40 L 96 68 Q 96 80 84 80 L 56 80 L 40 92 L 40 80 Q 32 80 32 68 Z" 
+        fill="#05A3DD"/>
+  
+  <!-- Smile (white) -->
+  <path d="M 48 56 Q 64 68 80 56" 
+        stroke="white" 
+        stroke-width="4" 
+        stroke-linecap="round" 
+        fill="none"/>
+  
+  <!-- Left eye (white) -->
+  <circle cx="52" cy="48" r="3" fill="white"/>
+  
+  <!-- Right eye (white) -->
+  <circle cx="76" cy="48" r="3" fill="white"/>
+  
+  <!-- Green accent dots (Pinnacle green) -->
+  <circle cx="44" cy="64" r="2" fill="#74D63C"/>
+  <circle cx="84" cy="64" r="2" fill="#74D63C"/>
+  
+  <!-- Playful sparkle (green) -->
+  <path d="M 100 24 L 102 28 L 106 26 L 104 30 L 108 32 L 104 34 L 106 38 L 102 36 L 100 40 L 98 36 L 94 38 L 96 34 L 92 32 L 96 30 L 94 26 L 98 28 Z" 
+        fill="#74D63C" 
+        opacity="0.8"/>
+</svg>

@@ -7,8 +7,8 @@
 body {
   width: 400px;
   min-height: 500px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background: #f5f7fa;
+  font-family: 'Open Sans', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #F3FAFB;
   color: #333;
 }
 
@@ -20,12 +20,23 @@ body {
 
 /* Header */
 .header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #05A3DD 0%, #74D63C 100%);
   color: white;
   padding: 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-icon {
+  width: 32px;
+  height: 32px;
 }
 
 .header h1 {
@@ -48,8 +59,8 @@ body {
 }
 
 .status-dot.online {
-  background: #10b981;
-  box-shadow: 0 0 8px #10b981;
+  background: #74D63C;
+  box-shadow: 0 0 8px #74D63C;
 }
 
 .status-dot.offline {
@@ -77,13 +88,13 @@ body {
 }
 
 .tab-button:hover {
-  color: #667eea;
-  background: #f9fafb;
+  color: #05A3DD;
+  background: #F3FAFB;
 }
 
 .tab-button.active {
-  color: #667eea;
-  border-bottom-color: #667eea;
+  color: #05A3DD;
+  border-bottom-color: #05A3DD;
 }
 
 /* Tab Content */
@@ -134,6 +145,11 @@ body {
   flex-shrink: 0;
 }
 
+.bot-avatar {
+  width: 28px;
+  height: 28px;
+}
+
 .message-content {
   flex: 1;
   padding: 10px 14px;
@@ -143,8 +159,9 @@ body {
 }
 
 .message.bot .message-content {
-  background: #f3f4f6;
+  background: #F3FAFB;
   color: #1f2937;
+  border: 1px solid #05A3DD33;
 }
 
 .message.user {
@@ -156,7 +173,7 @@ body {
 }
 
 .message.user .message-content {
-  background: #667eea;
+  background: #05A3DD;
   color: white;
 }
 
@@ -193,7 +210,7 @@ body {
 }
 
 #chat-input:focus {
-  border-color: #667eea;
+  border-color: #05A3DD;
 }
 
 .send-button {
@@ -201,7 +218,7 @@ body {
   height: 40px;
   border: none;
   border-radius: 8px;
-  background: #667eea;
+  background: #05A3DD;
   color: white;
   cursor: pointer;
   display: flex;
@@ -211,7 +228,7 @@ body {
 }
 
 .send-button:hover {
-  background: #5568d3;
+  background: #0489BB;
 }
 
 .send-button:disabled {
@@ -253,10 +270,10 @@ body {
 }
 
 .action-btn:hover {
-  border-color: #667eea;
-  background: #f9fafb;
+  border-color: #05A3DD;
+  background: #F3FAFB;
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(5, 163, 221, 0.2);
 }
 
 .action-btn:active {
@@ -382,22 +399,42 @@ body {
 }
 
 .primary-button {
-  background: #667eea;
+  background: #05A3DD;
   color: white;
 }
 
 .primary-button:hover {
-  background: #5568d3;
+  background: #0489BB;
 }
 
 .secondary-button {
   background: white;
-  color: #667eea;
-  border: 1px solid #667eea;
+  color: #05A3DD;
+  border: 1px solid #05A3DD;
 }
 
 .secondary-button:hover {
-  background: #f9fafb;
+  background: #F3FAFB;
+}
+
+/* Footer */
+.footer {
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  padding: 8px 16px;
+  text-align: center;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.footer a {
+  color: #05A3DD;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.footer a:hover {
+  text-decoration: underline;
 }
 
 /* Scrollbar */
