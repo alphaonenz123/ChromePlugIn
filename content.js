@@ -182,12 +182,13 @@ async function scheduleAppointment() {
       highlightElement(button);
       button.scrollIntoView({ behavior: 'smooth', block: 'center' });
       
-      // Simulate click after a brief delay
-      setTimeout(() => {
-        button.click();
-      }, 1000);
-      
-      return `Found and clicked: "${button.innerText || button.value || button.title}"\nAppointment scheduling form should now be visible.`;
+      // Wait for scroll to complete, then click
+      return new Promise(resolve => {
+        setTimeout(() => {
+          button.click();
+          resolve(`Found and clicked: "${button.innerText || button.value || button.title}"\nAppointment scheduling form should now be visible.`);
+        }, 1000);
+      });
     }
   }
   

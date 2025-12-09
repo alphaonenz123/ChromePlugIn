@@ -90,9 +90,17 @@ document.getElementById('test-connection').addEventListener('click', async () =>
   const apiKey = document.getElementById('api-key').value;
   
   if (!apiUrl || !apiKey) {
-    alert('Please enter both API URL and API Key');
+    // Switch to chat tab and show error
+    document.querySelector('[data-tab="chat"]').click();
+    addMessage('Please enter both API URL and API Key in Settings', 'error', '⚠️');
     return;
   }
+  
+  // Show testing message
+  const testButton = document.getElementById('test-connection');
+  const originalText = testButton.textContent;
+  testButton.textContent = 'Testing...';
+  testButton.disabled = true;
   
   try {
     const response = await chrome.runtime.sendMessage({
@@ -101,16 +109,23 @@ document.getElementById('test-connection').addEventListener('click', async () =>
       apiKey
     });
     
+    // Switch to chat tab to show result
+    document.querySelector('[data-tab="chat"]').click();
+    
     if (response.success) {
-      alert('✅ Connection successful!');
+      addMessage('✅ Connection successful! API is working correctly.', 'bot', '✅');
       updateStatus(true);
     } else {
-      alert('❌ Connection failed: ' + response.error);
+      addMessage('❌ Connection failed: ' + response.error, 'error', '⚠️');
       updateStatus(false);
     }
   } catch (error) {
-    alert('❌ Connection test failed: ' + error.message);
+    document.querySelector('[data-tab="chat"]').click();
+    addMessage('❌ Connection test failed: ' + error.message, 'error', '⚠️');
     updateStatus(false);
+  } finally {
+    testButton.textContent = originalText;
+    testButton.disabled = false;
   }
 });
 

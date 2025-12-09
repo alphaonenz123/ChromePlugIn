@@ -126,7 +126,7 @@ async function testApiConnection(request, sendResponse) {
   }
 }
 
-// Install event - set default settings
+// Install event - set default settings and create context menu
 chrome.runtime.onInstalled.addListener(async () => {
   console.log('Extension installed');
   
@@ -150,10 +150,8 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (Object.keys(defaults).length > 0) {
     await chrome.storage.sync.set(defaults);
   }
-});
-
-// Context menu integration (optional feature)
-chrome.runtime.onInstalled.addListener(() => {
+  
+  // Create context menu for selected text
   chrome.contextMenus.create({
     id: 'askChatbot',
     title: 'Ask Chatbot about "%s"',
