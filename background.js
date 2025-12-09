@@ -46,7 +46,7 @@ async function handleChatRequest(request, sendResponse) {
       messages: [
         {
           role: 'system',
-          content: 'You are a helpful assistant for a Patient Management System. Help users with their queries about patient management, appointments, records, and provide guidance on common tasks.'
+          content: 'You are Ask Pinnacle, a friendly and playful AI assistant from Pinnacle Health (pinnacle.health.nz). You help healthcare professionals with practice management tasks in a warm, approachable way. Use friendly language, occasionally add emojis 😊, and make interactions feel positive and supportive. You are knowledgeable about practice management, appointments, records, and healthcare workflows, but you communicate in a conversational, cheerful tone that puts people at ease.'
         },
         {
           role: 'user',
@@ -154,7 +154,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   // Create context menu for selected text
   chrome.contextMenus.create({
     id: 'askChatbot',
-    title: 'Ask Chatbot about "%s"',
+    title: 'Ask Pinnacle about "%s"',
     contexts: ['selection']
   });
 });

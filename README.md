@@ -1,14 +1,15 @@
-# Patient Management Chatbot Assistant
+# Ask Pinnacle
 
-A powerful Chrome and Edge browser extension that provides AI-powered chatbot assistance and RPA (Robotic Process Automation) capabilities for Patient Management Systems.
+A playful and powerful Chrome and Edge browser extension from Pinnacle Health that provides AI-powered chatbot assistance and RPA (Robotic Process Automation) capabilities for Patient Management Systems. Learn more at [pinnacle.health.nz](https://pinnacle.health.nz).
 
 ## Features
 
-### 🤖 AI Chatbot
-- Interactive chat interface powered by OpenAI API (or custom API endpoint)
+### 🤖 AI Chatbot - Ask Pinnacle
+- Interactive chat interface with a friendly, playful tone powered by OpenAI API (or custom API endpoint)
 - Context-aware responses for patient management queries
-- Real-time conversation with AI assistant
+- Real-time conversation with your cheerful AI assistant
 - Customizable API endpoints and models
+- Beautiful Pinnacle Health branding with signature colors (blue #05A3DD, green #74D63C)
 
 ### 🔄 RPA Automation
 The extension includes intelligent automation for common Patient Management System tasks:
@@ -64,6 +65,8 @@ The extension includes intelligent automation for common Patient Management Syst
 - "How do I schedule a patient appointment?"
 - "What information is needed for patient registration?"
 - "Explain the process for updating patient records"
+
+Ask Pinnacle responds in a friendly, helpful tone that makes healthcare tasks feel more approachable! 😊
 
 ### Using RPA Actions
 
@@ -231,10 +234,12 @@ For issues, questions, or contributions, please visit the project repository.
 ## Version History
 
 ### Version 1.0.0
-- Initial release
+- Initial release as "Ask Pinnacle" from Pinnacle Health
+- Playful, friendly AI chatbot with Pinnacle branding
 - AI chatbot integration with OpenAI API support
 - Six core RPA automation actions
 - Three-tab interface (Chat, RPA, Settings)
 - Automatic PMS detection
 - Secure API key storage
 - Chrome and Edge compatibility
+- Pinnacle Health color scheme and playful chat bubble icon

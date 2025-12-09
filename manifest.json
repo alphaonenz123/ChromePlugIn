@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Patient Management Chatbot Assistant",
+  "name": "Ask Pinnacle",
   "version": "1.0.0",
-  "description": "AI-powered chatbot assistant with RPA capabilities for Patient Management Systems",
+  "description": "Your playful AI assistant from Pinnacle Health - helping with patient management tasks with a smile!",
   "permissions": [
     "activeTab",
     "storage",

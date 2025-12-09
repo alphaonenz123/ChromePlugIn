@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PM Chatbot Assistant</title>
+  <title>Ask Pinnacle</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>🤖 PM Chatbot Assistant</h1>
+      <div class="header-content">
+        <img src="icon-pinnacle-playful.svg" alt="Ask Pinnacle" class="header-icon">
+        <h1>Ask Pinnacle</h1>
+      </div>
       <div class="status">
         <span id="status-indicator" class="status-dot offline"></span>
         <span id="status-text">Offline</span>
@@ -26,9 +29,9 @@
     <div id="chat-tab" class="tab-content active">
       <div id="chat-messages" class="chat-messages">
         <div class="message bot">
-          <span class="message-icon">🤖</span>
+          <span class="message-icon"><img src="icon-pinnacle-playful.svg" alt="Ask Pinnacle" class="bot-avatar"></span>
           <div class="message-content">
-            <p>Hello! I'm your Patient Management Assistant. How can I help you today?</p>
+            <p>Kia ora! 👋 I'm Ask Pinnacle, your friendly practice helper! What can I do for you today? 😊</p>
           </div>
         </div>
       </div>
@@ -36,7 +39,7 @@
       <div class="chat-input-container">
         <textarea 
           id="chat-input" 
-          placeholder="Type your message here..."
+          placeholder="Ask me anything about your practice... 💬"
           rows="2"
         ></textarea>
         <button id="send-button" class="send-button">
@@ -137,6 +140,10 @@
         <button id="test-connection" class="secondary-button">Test API Connection</button>
       </div>
     </div>
+
+    <footer class="footer">
+      <p>Powered by <a href="https://pinnacle.health.nz" target="_blank" rel="noopener noreferrer">Pinnacle Health</a> 💚</p>
+    </footer>
   </div>
 
   <script src="popup.js"></script>

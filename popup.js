@@ -130,14 +130,25 @@ document.getElementById('test-connection').addEventListener('click', async () =>
 });
 
 // Add message to chat
-function addMessage(text, type = 'bot', icon = '🤖') {
+function addMessage(text, type = 'bot', icon = null) {
   const messageDiv = document.createElement('div');
   messageDiv.className = `message ${type}`;
   
   if (type !== 'user') {
     const iconSpan = document.createElement('span');
     iconSpan.className = 'message-icon';
-    iconSpan.textContent = icon;
+    
+    if (type === 'bot' && !icon) {
+      // Use Ask Pinnacle avatar for bot messages
+      const img = document.createElement('img');
+      img.src = 'icon-pinnacle-playful.svg';
+      img.alt = 'Ask Pinnacle';
+      img.className = 'bot-avatar';
+      iconSpan.appendChild(img);
+    } else if (icon) {
+      iconSpan.textContent = icon;
+    }
+    
     messageDiv.appendChild(iconSpan);
   }
   
@@ -232,7 +243,7 @@ document.querySelectorAll('.action-btn').forEach(button => {
         // If there's a result, show it in chat
         if (response.result) {
           document.querySelector('[data-tab="chat"]').click();
-          addMessage(`RPA Action Result:\n${response.result}`, 'bot', '🤖');
+          addMessage(`RPA Action Result:\n${response.result}`, 'bot');
         }
       } else {
         addLogEntry(`❌ ${actionName} failed: ${response?.error || 'Unknown error'}`, 'error');
