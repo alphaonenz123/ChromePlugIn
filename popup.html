@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PM Chatbot Assistant</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🤖 PM Chatbot Assistant</h1>
+      <div class="status">
+        <span id="status-indicator" class="status-dot offline"></span>
+        <span id="status-text">Offline</span>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-button active" data-tab="chat">Chat</button>
+      <button class="tab-button" data-tab="rpa">RPA Actions</button>
+      <button class="tab-button" data-tab="settings">Settings</button>
+    </div>
+
+    <!-- Chat Tab -->
+    <div id="chat-tab" class="tab-content active">
+      <div id="chat-messages" class="chat-messages">
+        <div class="message bot">
+          <span class="message-icon">🤖</span>
+          <div class="message-content">
+            <p>Hello! I'm your Patient Management Assistant. How can I help you today?</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="chat-input-container">
+        <textarea 
+          id="chat-input" 
+          placeholder="Type your message here..."
+          rows="2"
+        ></textarea>
+        <button id="send-button" class="send-button">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- RPA Tab -->
+    <div id="rpa-tab" class="tab-content">
+      <div class="rpa-section">
+        <h3>Quick Actions</h3>
+        <div class="action-buttons">
+          <button class="action-btn" data-action="fillPatientForm">
+            📝 Auto-Fill Patient Form
+          </button>
+          <button class="action-btn" data-action="extractPatientData">
+            📊 Extract Patient Data
+          </button>
+          <button class="action-btn" data-action="scheduleAppointment">
+            📅 Schedule Appointment
+          </button>
+          <button class="action-btn" data-action="generateReport">
+            📄 Generate Report
+          </button>
+          <button class="action-btn" data-action="searchPatient">
+            🔍 Search Patient
+          </button>
+          <button class="action-btn" data-action="updateRecords">
+            ✏️ Update Records
+          </button>
+        </div>
+      </div>
+
+      <div class="rpa-logs">
+        <h4>Action Log</h4>
+        <div id="action-log" class="log-container">
+          <p class="log-empty">No actions performed yet.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div id="settings-tab" class="tab-content">
+      <div class="settings-section">
+        <h3>API Configuration</h3>
+        <div class="form-group">
+          <label for="api-url">API Endpoint URL</label>
+          <input 
+            type="url" 
+            id="api-url" 
+            placeholder="https://api.example.com/chat"
+            value="https://api.openai.com/v1/chat/completions"
+          >
+        </div>
+        
+        <div class="form-group">
+          <label for="api-key">API Key</label>
+          <input 
+            type="password" 
+            id="api-key" 
+            placeholder="Enter your API key"
+          >
+          <small>Your API key is stored securely in browser storage</small>
+        </div>
+
+        <div class="form-group">
+          <label for="model-select">Model</label>
+          <select id="model-select">
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+            <option value="gpt-4">GPT-4</option>
+            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+            <option value="custom">Custom Model</option>
+          </select>
+        </div>
+
+        <h3>RPA Settings</h3>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="auto-detect-pms" checked>
+            Auto-detect Patient Management System
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label for="pms-url">PMS URL Pattern</label>
+          <input 
+            type="text" 
+            id="pms-url" 
+            placeholder="*://pms.hospital.com/*"
+          >
+          <small>Use wildcards to match your PMS domain</small>
+        </div>
+
+        <button id="save-settings" class="primary-button">Save Settings</button>
+        <button id="test-connection" class="secondary-button">Test API Connection</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+# API Keys and Secrets (never commit these!)
+*.key
+*.secret
+config.local.js
+.env
+.env.local
+
+# OS Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Editor directories and files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Temporary files
+/tmp/
+*.tmp
+*.log
+
+# Node modules (if you add build tools later)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs (if you add a build process)
+dist/
+build/
+*.zip
+
+# Test files
+coverage/
+.nyc_output/
+
+# Python (from icon generation)
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
