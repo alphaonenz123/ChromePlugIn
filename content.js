@@ -398,33 +398,100 @@ function extractPatientHeader() {
     .filter(Boolean);
 
   const demographics = {};
+  const bodyText = lines.join(' ');
 
-  const nhiMatch = lines.join(' ').match(/NHI[:\s]*([A-Z0-9-]+)/i);
+  const nhiMatch = bodyText.match(/NHI[:\s]*([A-Z0-9-]+)/i);
   if (nhiMatch) {
     demographics.nhi = nhiMatch[1];
   }
 
-  const dobMatch = lines.join(' ').match(/(?:DOB|Date of Birth)[:\s]*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})/i);
+  const dobMatch = bodyText.match(/(?:DOB|Date of Birth)[:\s]*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})/i);
   if (dobMatch) {
     demographics.dateOfBirth = dobMatch[1];
   }
 
-  const ageMatch = lines.join(' ').match(/age[:\s]*([0-9]{1,3})/i);
+  const ageMatch = bodyText.match(/age[:\s]*([0-9]{1,3})/i);
   if (ageMatch) {
     demographics.age = ageMatch[1];
   }
 
-  const genderMatch = lines.join(' ').match(/(?:gender|sex)[:\s]*(male|female|other)/i);
+  const genderMatch = bodyText.match(/(?:gender|sex)[:\s]*(male|female|other)/i);
   if (genderMatch) {
     demographics.gender = genderMatch[1];
   }
 
-  const nhiLineIndex = lines.findIndex(line => /NHI[:\s]/i.test(line));
-  if (nhiLineIndex > 0) {
-    demographics.name = lines[nhiLineIndex - 1];
+  // Try to find patient name using DOM relationships
+  const nameElement = findPatientNameElement();
+  if (nameElement) {
+    demographics.name = nameElement.textContent.trim();
   }
 
   return demographics;
+}
+
+// Helper: Find patient name element using DOM relationships
+function findPatientNameElement() {
+  // Strategy 1: Look for labels with "patient name" or "name" text
+  const labels = Array.from(document.querySelectorAll('label, span, th, td, div'));
+  
+  for (const label of labels) {
+    const labelText = (label.textContent || '').toLowerCase().trim();
+    
+    // Check if this is a "patient name" or "name" label
+    if (labelText === 'patient name' || labelText === 'name' || labelText === 'patient name:' || labelText === 'name:') {
+      // Look for the value in adjacent elements (sibling, parent's next sibling, etc.)
+      let valueElement = label.nextElementSibling;
+      if (valueElement && valueElement.textContent.trim() && !valueElement.querySelector('input, textarea')) {
+        return valueElement;
+      }
+      
+      // Check if value is in the same element but after the label
+      const fullText = label.textContent.trim();
+      if (fullText.length > labelText.length) {
+        const nameValue = fullText.substring(labelText.length).trim();
+        if (nameValue && nameValue.length > 0 && nameValue.length < 100) {
+          return label;
+        }
+      }
+      
+      // Check parent's next sibling
+      if (label.parentElement && label.parentElement.nextElementSibling) {
+        const sibling = label.parentElement.nextElementSibling;
+        if (sibling.textContent.trim() && !sibling.querySelector('input, textarea')) {
+          return sibling;
+        }
+      }
+    }
+  }
+  
+  // Strategy 2: Look for elements near NHI field
+  const nhiElements = Array.from(document.querySelectorAll('*')).filter(el => {
+    const text = el.textContent || '';
+    return /NHI[:\s]/i.test(text) && text.length < 200;
+  });
+  
+  for (const nhiEl of nhiElements) {
+    // Look at previous siblings
+    let prev = nhiEl.previousElementSibling;
+    if (prev) {
+      const text = prev.textContent.trim();
+      // Check if it looks like a name (has spaces, capital letters, reasonable length)
+      if (text && text.length > 2 && text.length < 100 && /[A-Z]/.test(text) && !text.includes('NHI')) {
+        return prev;
+      }
+    }
+    
+    // Look at parent's previous sibling
+    if (nhiEl.parentElement && nhiEl.parentElement.previousElementSibling) {
+      const uncle = nhiEl.parentElement.previousElementSibling;
+      const text = uncle.textContent.trim();
+      if (text && text.length > 2 && text.length < 100 && /[A-Z]/.test(text) && !text.includes('NHI')) {
+        return uncle;
+      }
+    }
+  }
+  
+  return null;
 }
 
 // Helper: Find inputs by keywords
