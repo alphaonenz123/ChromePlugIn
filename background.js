@@ -96,6 +96,61 @@ async function handleChatRequest(request, sendResponse) {
   }
 }
 
+// Truncate payload sections to fit within character limit while preserving JSON structure
+function truncatePayload(payload, maxChars = 4000) {
+  const truncated = {
+    ...payload,
+    sections: {}
+  };
+
+  // Preserve metadata (sourceUrl, pageTitle, capturedAt, demographics)
+  // These are small and essential for context
+  
+  const sections = payload.sections || {};
+  const sectionKeys = Object.keys(sections);
+  
+  // Estimate overhead from JSON structure and metadata
+  const metadataText = JSON.stringify({
+    sourceUrl: payload.sourceUrl,
+    pageTitle: payload.pageTitle,
+    capturedAt: payload.capturedAt,
+    demographics: payload.demographics
+  }, null, 2);
+  
+  const structuralOverhead = 200; // Braces, quotes, commas, newlines, etc.
+  const availableChars = maxChars - metadataText.length - structuralOverhead;
+  
+  if (availableChars <= 0) {
+    // If metadata alone exceeds limit, return minimal payload
+    return truncated;
+  }
+  
+  // Distribute available characters across sections
+  const charsPerSection = Math.floor(availableChars / Math.max(sectionKeys.length, 1));
+  
+  for (const key of sectionKeys) {
+    const items = sections[key] || [];
+    const truncatedItems = [];
+    let currentLength = 0;
+    
+    for (const item of items) {
+      const itemLength = JSON.stringify(item).length + 10; // Add overhead for array elements
+      if (currentLength + itemLength <= charsPerSection) {
+        truncatedItems.push(item);
+        currentLength += itemLength;
+      } else {
+        break;
+      }
+    }
+    
+    if (truncatedItems.length > 0) {
+      truncated.sections[key] = truncatedItems;
+    }
+  }
+  
+  return truncated;
+}
+
 // Summarize Indici patient history
 async function handleSummaryRequest(request, sendResponse) {
   try {
@@ -113,7 +168,8 @@ async function handleSummaryRequest(request, sendResponse) {
     }
 
     const payload = request.payload || {};
-    const payloadText = JSON.stringify(payload, null, 2).slice(0, 4000);
+    const truncatedPayload = truncatePayload(payload, 4000);
+    const payloadText = JSON.stringify(truncatedPayload, null, 2);
 
     const requestBody = {
       model: model,
