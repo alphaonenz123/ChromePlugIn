@@ -109,7 +109,7 @@ function truncatePayload(payload, maxChars = 4000) {
   const sections = payload.sections || {};
   const sectionKeys = Object.keys(sections);
   
-  // Estimate overhead from JSON structure and metadata
+  // Calculate actual overhead from JSON structure and metadata
   const metadataText = JSON.stringify({
     sourceUrl: payload.sourceUrl,
     pageTitle: payload.pageTitle,
@@ -117,13 +117,21 @@ function truncatePayload(payload, maxChars = 4000) {
     demographics: payload.demographics
   }, null, 2);
   
-  const structuralOverhead = 200; // Braces, quotes, commas, newlines, etc.
+  // Measure structural overhead by creating a minimal sections object
+  const minimalSections = {};
+  sectionKeys.forEach(key => { minimalSections[key] = []; });
+  const minimalPayload = { ...payload, sections: minimalSections };
+  const structuralOverhead = JSON.stringify(minimalPayload, null, 2).length - metadataText.length;
+  
   const availableChars = maxChars - metadataText.length - structuralOverhead;
   
   if (availableChars <= 0) {
     // If metadata alone exceeds limit, return minimal payload
     return truncated;
   }
+  
+  // Array element overhead: comma, newline, and indentation (typically 6-8 chars per element)
+  const ARRAY_ELEMENT_OVERHEAD = 8;
   
   // Distribute available characters across sections
   const charsPerSection = Math.floor(availableChars / Math.max(sectionKeys.length, 1));
@@ -134,7 +142,7 @@ function truncatePayload(payload, maxChars = 4000) {
     let currentLength = 0;
     
     for (const item of items) {
-      const itemLength = JSON.stringify(item).length + 10; // Add overhead for array elements
+      const itemLength = JSON.stringify(item).length + ARRAY_ELEMENT_OVERHEAD;
       if (currentLength + itemLength <= charsPerSection) {
         truncatedItems.push(item);
         currentLength += itemLength;
