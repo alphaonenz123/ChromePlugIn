@@ -109,21 +109,19 @@ function truncatePayload(payload, maxChars = 4000) {
   const sections = payload.sections || {};
   const sectionKeys = Object.keys(sections);
   
-  // Calculate actual overhead from JSON structure and metadata
-  const metadataText = JSON.stringify({
+  // Calculate base size with metadata and empty sections structure
+  const minimalSections = {};
+  sectionKeys.forEach(key => { minimalSections[key] = []; });
+  const basePayload = {
     sourceUrl: payload.sourceUrl,
     pageTitle: payload.pageTitle,
     capturedAt: payload.capturedAt,
-    demographics: payload.demographics
-  }, null, 2);
+    demographics: payload.demographics,
+    sections: minimalSections
+  };
+  const baseSize = JSON.stringify(basePayload, null, 2).length;
   
-  // Measure structural overhead by creating a minimal sections object
-  const minimalSections = {};
-  sectionKeys.forEach(key => { minimalSections[key] = []; });
-  const minimalPayload = { ...payload, sections: minimalSections };
-  const structuralOverhead = JSON.stringify(minimalPayload, null, 2).length - metadataText.length;
-  
-  const availableChars = maxChars - metadataText.length - structuralOverhead;
+  const availableChars = maxChars - baseSize;
   
   if (availableChars <= 0) {
     // If metadata alone exceeds limit, return minimal payload
