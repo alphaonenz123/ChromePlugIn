@@ -130,7 +130,8 @@ function truncatePayload(payload, maxChars = 4000) {
     return truncated;
   }
   
-  // Array element overhead: comma, newline, and indentation (typically 6-8 chars per element)
+  // Array element overhead: accounts for comma (1), newline (1), and indentation (6 spaces for nested arrays)
+  // Measured from typical JSON.stringify(arr, null, 2) formatting
   const ARRAY_ELEMENT_OVERHEAD = 8;
   
   // Distribute available characters across sections
