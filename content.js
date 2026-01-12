@@ -432,7 +432,7 @@ function extractPatientHeader() {
 // Helper: Find patient name element using DOM relationships
 function findPatientNameElement() {
   // Strategy 1: Look for labels with "patient name" or "name" text
-  const labels = Array.from(document.querySelectorAll('label, span, th, td, div'));
+  const labels = Array.from(document.querySelectorAll('label, span[class], th, td, div[class], p[class]'));
   
   for (const label of labels) {
     const labelText = (label.textContent || '').toLowerCase().trim();
@@ -465,7 +465,7 @@ function findPatientNameElement() {
   }
   
   // Strategy 2: Look for elements near NHI field
-  const nhiElements = Array.from(document.querySelectorAll('*')).filter(el => {
+  const nhiElements = Array.from(document.querySelectorAll('div, span, td, th, p, label')).filter(el => {
     const text = el.textContent || '';
     return /NHI[:\s]/i.test(text) && text.length < 200;
   });
@@ -473,25 +473,29 @@ function findPatientNameElement() {
   for (const nhiEl of nhiElements) {
     // Look at previous siblings
     let prev = nhiEl.previousElementSibling;
-    if (prev) {
-      const text = prev.textContent.trim();
-      // Check if it looks like a name (has spaces, capital letters, reasonable length)
-      if (text && text.length > 2 && text.length < 100 && /[A-Z]/.test(text) && !text.includes('NHI')) {
-        return prev;
-      }
+    if (prev && isValidPatientName(prev.textContent.trim())) {
+      return prev;
     }
     
     // Look at parent's previous sibling
     if (nhiEl.parentElement && nhiEl.parentElement.previousElementSibling) {
       const uncle = nhiEl.parentElement.previousElementSibling;
-      const text = uncle.textContent.trim();
-      if (text && text.length > 2 && text.length < 100 && /[A-Z]/.test(text) && !text.includes('NHI')) {
+      if (isValidPatientName(uncle.textContent.trim())) {
         return uncle;
       }
     }
   }
   
   return null;
+}
+
+// Helper: Validate if text looks like a patient name
+function isValidPatientName(text) {
+  return text && 
+         text.length > 2 && 
+         text.length < 100 && 
+         /[A-Z]/.test(text) && 
+         !text.includes('NHI');
 }
 
 // Helper: Find inputs by keywords
