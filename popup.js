@@ -437,12 +437,19 @@ async function loadQuickSuiteEmbed(settings) {
     }
 
     // Validate URL is from QuickSight domain (security check)
+    // Must be exactly *.quicksight.aws.amazon.com to prevent subdomain attacks
     const urlObj = new URL(data.url);
-    if (!urlObj.hostname.includes('quicksight.aws.amazon.com')) {
-      const errorMsg = `Security: URL is not from QuickSight domain (${urlObj.hostname})`;
+    const hostname = urlObj.hostname;
+    const isValidQuickSightDomain = hostname.endsWith('.quicksight.aws.amazon.com') || 
+                                     hostname === 'quicksight.aws.amazon.com';
+    
+    if (!isValidQuickSightDomain) {
+      const errorMsg = `Security: URL must be from QuickSight domain (got: ${hostname})`;
       console.error('[Quick Suite]', errorMsg);
       throw new Error(errorMsg);
     }
+    
+    console.log('[Quick Suite] URL validated as QuickSight domain:', hostname);
 
     console.log('[Quick Suite] Creating iframe for embedded chat');
     
