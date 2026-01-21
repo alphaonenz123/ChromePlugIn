@@ -127,6 +127,7 @@ ChromePlugIn/
 │   ├── icon32.png
 │   ├── icon48.png
 │   └── icon128.png
+├── QUICK_SUITE_INTEGRATION.md # Guide for Amazon Quick Suite embedded chat
 └── README.md              # Documentation
 ```
 
@@ -213,6 +214,10 @@ async function yourActionName() {
 ### Customizing the API Integration
 
 Modify `background.js` to integrate with different API endpoints or change the request/response format.
+
+### Quick Suite Embedded Chat (default agent guidance)
+
+See `QUICK_SUITE_INTEGRATION.md` for recommended integration patterns if you want to make Amazon Quick Suite the default agent, including Chrome extension embedding and Bedrock Agent Gateway options.
 
 ## Privacy Policy
 
