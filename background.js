@@ -1,9 +1,13 @@
 // Background Service Worker for Chatbot Assistant
-console.log('Chatbot Assistant Background Service Worker loaded');
+console.log('[Background] Ask Pinnacle Background Service Worker loaded');
 
 // Listen for messages from popup and content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Background received message:', request);
+  console.log('[Background] Received message:', {
+    action: request.action,
+    senderId: sender?.id,
+    tabId: sender?.tab?.id
+  });
   
   if (request.action === 'chat') {
     handleChatRequest(request, sendResponse);
@@ -17,7 +21,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   
   if (request.action === 'rpaNotification') {
     // Handle RPA action notifications
-    console.log('RPA Action:', request.data);
+    console.log('[Background] RPA Action:', request.data);
     sendResponse({ success: true });
     return false;
   }
@@ -26,6 +30,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     handleSummaryRequest(request, sendResponse);
     return true; // Will respond asynchronously
   }
+  
+  // Unknown action
+  console.warn('[Background] Unknown action:', request.action);
+  return false;
 });
 
 // Handle chat requests to API
@@ -251,44 +259,58 @@ async function testApiConnection(request, sendResponse) {
 }
 
 // Install event - set default settings and create context menu
-chrome.runtime.onInstalled.addListener(async () => {
-  console.log('Extension installed');
+chrome.runtime.onInstalled.addListener(async (details) => {
+  console.log('[Background] Extension installed/updated:', details.reason);
   
-  // Set default settings if not already set
-  const settings = await chrome.storage.sync.get(['apiUrl', 'model', 'autoDetectPms']);
-  
-  const defaults = {};
-  
-  if (!settings.apiUrl) {
-    defaults.apiUrl = 'https://api.openai.com/v1/chat/completions';
+  try {
+    // Set default settings if not already set
+    const settings = await chrome.storage.sync.get(['apiUrl', 'model', 'autoDetectPms']);
+    
+    const defaults = {};
+    
+    if (!settings.apiUrl) {
+      defaults.apiUrl = 'https://api.openai.com/v1/chat/completions';
+    }
+    
+    if (!settings.model) {
+      defaults.model = 'gpt-3.5-turbo';
+    }
+    
+    if (settings.autoDetectPms === undefined) {
+      defaults.autoDetectPms = true;
+    }
+    
+    if (Object.keys(defaults).length > 0) {
+      await chrome.storage.sync.set(defaults);
+      console.log('[Background] Default settings applied:', defaults);
+    }
+    
+    // Create context menu for selected text
+    chrome.contextMenus.create({
+      id: 'askChatbot',
+      title: 'Ask Pinnacle about "%s"',
+      contexts: ['selection']
+    });
+    console.log('[Background] Context menu created');
+  } catch (error) {
+    console.error('[Background] Error during installation:', error);
   }
-  
-  if (!settings.model) {
-    defaults.model = 'gpt-3.5-turbo';
-  }
-  
-  if (settings.autoDetectPms === undefined) {
-    defaults.autoDetectPms = true;
-  }
-  
-  if (Object.keys(defaults).length > 0) {
-    await chrome.storage.sync.set(defaults);
-  }
-  
-  // Create context menu for selected text
-  chrome.contextMenus.create({
-    id: 'askChatbot',
-    title: 'Ask Pinnacle about "%s"',
-    contexts: ['selection']
-  });
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  console.log('[Background] Context menu clicked:', info.menuItemId);
+  
   if (info.menuItemId === 'askChatbot') {
     // Send selected text to chatbot
     const selectedText = info.selectionText;
+    console.log('[Background] Selected text:', selectedText?.substring(0, 50));
     
-    // Open popup or send notification
-    chrome.action.openPopup();
+    // Open popup
+    try {
+      await chrome.action.openPopup();
+      console.log('[Background] Popup opened');
+    } catch (error) {
+      console.error('[Background] Failed to open popup:', error);
+    }
   }
 });
