@@ -172,7 +172,7 @@ body {
   /* Dynamic sizing for Amazon Quick Suite embedded chat */
   /* Per AWS QuickSight guidelines, iframe should be responsive */
   min-height: 400px;
-  position: relative;
+  position: relative; /* Required for absolute positioning of iframe child */
 }
 
 .quicksuite-frame iframe {

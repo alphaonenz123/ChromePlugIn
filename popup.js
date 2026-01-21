@@ -29,11 +29,8 @@ function initQuickSuiteResizeObserver() {
       const { width, height } = entry.contentRect;
       console.log(`[Quick Suite] Container resized: ${width}x${height}px`);
       
-      // Ensure iframe adjusts to container size
-      const iframe = quickSuiteFrame.querySelector('iframe');
-      if (iframe) {
-        console.log(`[Quick Suite] Iframe dimensions updated to match container`);
-      }
+      // Note: Iframe automatically adjusts via CSS (100% width/height with position: absolute)
+      // This observer is primarily for debugging and logging resize events
     }
   });
   
@@ -442,7 +439,9 @@ async function loadQuickSuiteEmbed(settings) {
     // Validate URL is from QuickSight domain (security check)
     const urlObj = new URL(data.url);
     if (!urlObj.hostname.includes('quicksight.aws.amazon.com')) {
-      console.warn('[Quick Suite] URL is not from QuickSight domain:', urlObj.hostname);
+      const errorMsg = `Security: URL is not from QuickSight domain (${urlObj.hostname})`;
+      console.error('[Quick Suite]', errorMsg);
+      throw new Error(errorMsg);
     }
 
     console.log('[Quick Suite] Creating iframe for embedded chat');
