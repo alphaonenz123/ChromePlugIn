@@ -11,6 +11,38 @@ const quickSuiteStatus = document.getElementById('quicksuite-status');
 const quickSuiteRefresh = document.getElementById('quicksuite-refresh');
 const chatInputContainer = document.querySelector('.chat-input-container');
 
+// ResizeObserver for dynamic Quick Suite iframe sizing
+// This helps ensure the iframe adapts to container size changes
+let quickSuiteResizeObserver = null;
+
+/**
+ * Initialize ResizeObserver for Quick Suite container
+ * Observes container size changes and logs for debugging
+ */
+function initQuickSuiteResizeObserver() {
+  if (quickSuiteResizeObserver) {
+    quickSuiteResizeObserver.disconnect();
+  }
+  
+  quickSuiteResizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const { width, height } = entry.contentRect;
+      console.log(`[Quick Suite] Container resized: ${width}x${height}px`);
+      
+      // Ensure iframe adjusts to container size
+      const iframe = quickSuiteFrame.querySelector('iframe');
+      if (iframe) {
+        console.log(`[Quick Suite] Iframe dimensions updated to match container`);
+      }
+    }
+  });
+  
+  if (quickSuiteFrame) {
+    quickSuiteResizeObserver.observe(quickSuiteFrame);
+    console.log('[Quick Suite] ResizeObserver initialized');
+  }
+}
+
 // Tab switching
 document.querySelectorAll('.tab-button').forEach(button => {
   button.addEventListener('click', () => {
@@ -308,6 +340,12 @@ function applyChatMode(quickSuiteEnabled) {
   quickSuiteContainer.hidden = !isEnabled;
   chatMessages.hidden = isEnabled;
   chatInputContainer.hidden = isEnabled;
+  
+  // Cleanup resize observer when switching away from Quick Suite
+  if (!isEnabled && quickSuiteResizeObserver) {
+    quickSuiteResizeObserver.disconnect();
+    console.log('[Quick Suite] ResizeObserver disconnected');
+  }
 }
 
 /**
@@ -422,6 +460,9 @@ async function loadQuickSuiteEmbed(settings) {
     iframe.addEventListener('load', () => {
       console.log('[Quick Suite] Iframe loaded successfully');
       setQuickSuiteStatus('Quick Suite embedded chat is ready.');
+      
+      // Initialize ResizeObserver to handle dynamic sizing
+      initQuickSuiteResizeObserver();
     });
     
     iframe.addEventListener('error', (e) => {
