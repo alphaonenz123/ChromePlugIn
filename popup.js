@@ -11,6 +11,35 @@ const quickSuiteStatus = document.getElementById('quicksuite-status');
 const quickSuiteRefresh = document.getElementById('quicksuite-refresh');
 const chatInputContainer = document.querySelector('.chat-input-container');
 
+// ResizeObserver for dynamic Quick Suite iframe sizing
+// This helps ensure the iframe adapts to container size changes
+let quickSuiteResizeObserver = null;
+
+/**
+ * Initialize ResizeObserver for Quick Suite container
+ * Observes container size changes and logs for debugging
+ */
+function initQuickSuiteResizeObserver() {
+  if (quickSuiteResizeObserver) {
+    quickSuiteResizeObserver.disconnect();
+  }
+  
+  quickSuiteResizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const { width, height } = entry.contentRect;
+      console.log(`[Quick Suite] Container resized: ${width}x${height}px`);
+      
+      // Note: Iframe automatically adjusts via CSS (100% width/height with position: absolute)
+      // This observer is primarily for debugging and logging resize events
+    }
+  });
+  
+  if (quickSuiteFrame) {
+    quickSuiteResizeObserver.observe(quickSuiteFrame);
+    console.log('[Quick Suite] ResizeObserver initialized');
+  }
+}
+
 // Tab switching
 document.querySelectorAll('.tab-button').forEach(button => {
   button.addEventListener('click', () => {
@@ -28,6 +57,8 @@ document.querySelectorAll('.tab-button').forEach(button => {
 
 // Load saved settings
 async function loadSettings() {
+  console.log('[Settings] Loading saved configuration...');
+  
   const settings = await chrome.storage.sync.get([
     'apiUrl',
     'apiKey',
@@ -39,6 +70,15 @@ async function loadSettings() {
     'quickSuiteAgentArn',
     'quickSuiteInitialQuery'
   ]);
+  
+  console.log('[Settings] Loaded configuration:', {
+    hasApiUrl: !!settings.apiUrl,
+    hasApiKey: !!settings.apiKey,
+    model: settings.model,
+    autoDetectPms: settings.autoDetectPms,
+    quickSuiteEnabled: settings.quickSuiteEnabled,
+    hasQuickSuiteEndpoint: !!settings.quickSuiteEndpoint
+  });
   
   if (settings.apiUrl) {
     document.getElementById('api-url').value = settings.apiUrl;
@@ -75,7 +115,10 @@ async function loadSettings() {
 
   applyChatMode(settings.quickSuiteEnabled);
   if (settings.quickSuiteEnabled) {
+    console.log('[Settings] Quick Suite is enabled, loading embed...');
     await loadQuickSuiteEmbed(settings);
+  } else {
+    console.log('[Settings] Using standard chat interface');
   }
 }
 
@@ -94,6 +137,8 @@ function updateStatus(isOnline) {
 
 // Save settings
 document.getElementById('save-settings').addEventListener('click', async () => {
+  console.log('[Settings] Saving configuration...');
+  
   const settings = {
     apiUrl: document.getElementById('api-url').value,
     apiKey: document.getElementById('api-key').value,
@@ -106,10 +151,18 @@ document.getElementById('save-settings').addEventListener('click', async () => {
     quickSuiteInitialQuery: document.getElementById('quicksuite-initial-query').value
   };
   
+  console.log('[Settings] Configuration:', {
+    hasApiKey: !!settings.apiKey,
+    model: settings.model,
+    quickSuiteEnabled: settings.quickSuiteEnabled,
+    hasQuickSuiteEndpoint: !!settings.quickSuiteEndpoint
+  });
+  
   await chrome.storage.sync.set(settings);
   
   // Show success message
   addMessage('Settings saved successfully!', 'bot');
+  console.log('[Settings] Configuration saved to storage');
   
   // Update status
   if (settings.apiKey) {
@@ -118,7 +171,10 @@ document.getElementById('save-settings').addEventListener('click', async () => {
 
   applyChatMode(settings.quickSuiteEnabled);
   if (settings.quickSuiteEnabled) {
+    console.log('[Settings] Quick Suite enabled, loading embed...');
     await loadQuickSuiteEmbed(settings);
+  } else {
+    console.log('[Settings] Quick Suite disabled, using standard chat');
   }
   
   // Switch back to chat tab
@@ -126,14 +182,21 @@ document.getElementById('save-settings').addEventListener('click', async () => {
 });
 
 quickSuiteRefresh.addEventListener('click', async () => {
+  console.log('[Quick Suite] Manual refresh requested');
+  
   const settings = await chrome.storage.sync.get([
     'quickSuiteEnabled',
     'quickSuiteEndpoint',
     'quickSuiteAgentArn',
     'quickSuiteInitialQuery'
   ]);
+  
   if (settings.quickSuiteEnabled) {
+    console.log('[Quick Suite] Reloading embed...');
     await loadQuickSuiteEmbed(settings);
+  } else {
+    console.warn('[Quick Suite] Refresh clicked but Quick Suite is not enabled');
+    setQuickSuiteStatus('Quick Suite is not enabled. Enable it in Settings.', true);
   }
 });
 
@@ -263,37 +326,83 @@ async function sendMessage() {
   }
 }
 
+/**
+ * Toggle between Quick Suite embedded chat and standard chat interface
+ * @param {boolean} quickSuiteEnabled - Whether Quick Suite mode is enabled
+ */
 function applyChatMode(quickSuiteEnabled) {
   const isEnabled = Boolean(quickSuiteEnabled);
+  console.log(`[Quick Suite] Applying chat mode: ${isEnabled ? 'Quick Suite' : 'Standard Chat'}`);
+  
   quickSuiteContainer.hidden = !isEnabled;
   chatMessages.hidden = isEnabled;
   chatInputContainer.hidden = isEnabled;
+  
+  // Cleanup resize observer when switching away from Quick Suite
+  if (!isEnabled && quickSuiteResizeObserver) {
+    quickSuiteResizeObserver.disconnect();
+    console.log('[Quick Suite] ResizeObserver disconnected');
+  }
 }
 
+/**
+ * Clear the Quick Suite iframe container
+ */
 function clearQuickSuiteFrame() {
+  console.log('[Quick Suite] Clearing iframe container');
   quickSuiteFrame.innerHTML = '';
 }
 
+/**
+ * Update the Quick Suite status message
+ * @param {string} message - Status message to display
+ * @param {boolean} isError - Whether this is an error message
+ */
 function setQuickSuiteStatus(message, isError = false) {
+  console.log(`[Quick Suite] Status: ${message} (error: ${isError})`);
   quickSuiteStatus.textContent = message;
-  quickSuiteStatus.classList.toggle('error', isError);
+  quickSuiteStatus.classList.remove('error', 'success');
+  
+  if (isError) {
+    quickSuiteStatus.classList.add('error');
+  } else if (message.includes('ready')) {
+    quickSuiteStatus.classList.add('success');
+  }
 }
 
+/**
+ * Load Amazon Quick Suite embedded chat iframe
+ * Per AWS QuickSight guidelines: https://aws.amazon.com/blogs/business-intelligence/announcing-embedded-chat-in-amazon-quick-suite/
+ * @param {Object} settings - Configuration settings for Quick Suite
+ */
 async function loadQuickSuiteEmbed(settings) {
   const endpoint = settings.quickSuiteEndpoint;
   const agentArn = settings.quickSuiteAgentArn;
   const initialQuery = settings.quickSuiteInitialQuery;
 
+  console.log('[Quick Suite] Loading embedded chat', {
+    endpoint,
+    hasAgentArn: !!agentArn,
+    hasInitialQuery: !!initialQuery
+  });
+
   clearQuickSuiteFrame();
 
+  // Validate endpoint configuration
   if (!endpoint) {
-    setQuickSuiteStatus('Add an embed URL endpoint in Settings to load Quick Suite.', true);
+    const errorMsg = 'Add an embed URL endpoint in Settings to load Quick Suite.';
+    console.warn('[Quick Suite]', errorMsg);
+    setQuickSuiteStatus(errorMsg, true);
     return;
   }
 
   setQuickSuiteStatus('Loading Quick Suite embed URL...');
 
   try {
+    console.log('[Quick Suite] Fetching embed URL from backend:', endpoint);
+    
+    // Request embed URL from backend service
+    // Backend should call AWS QuickSight GenerateEmbedUrlForRegisteredUser
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -306,22 +415,72 @@ async function loadQuickSuiteEmbed(settings) {
     });
 
     if (!response.ok) {
-      throw new Error(`Embed URL request failed with status ${response.status}`);
+      const errorText = await response.text().catch(() => 'No error details available');
+      console.error('[Quick Suite] Backend request failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText
+      });
+      throw new Error(`Embed URL request failed with status ${response.status}: ${response.statusText}`);
     }
 
     const data = await response.json();
+    console.log('[Quick Suite] Received embed URL response:', {
+      hasUrl: !!data?.url,
+      urlLength: data?.url?.length
+    });
+    
+    // Validate response format
     if (!data?.url) {
+      console.error('[Quick Suite] Invalid response format:', data);
       throw new Error('Embed URL response did not include a "url" field.');
     }
 
+    // Validate URL is from QuickSight domain (security check)
+    // Must be exactly *.quicksight.aws.amazon.com to prevent subdomain attacks
+    const urlObj = new URL(data.url);
+    const hostname = urlObj.hostname;
+    const isValidQuickSightDomain = hostname.endsWith('.quicksight.aws.amazon.com') || 
+                                     hostname === 'quicksight.aws.amazon.com';
+    
+    if (!isValidQuickSightDomain) {
+      const errorMsg = `Security: URL must be from QuickSight domain (got: ${hostname})`;
+      console.error('[Quick Suite]', errorMsg);
+      throw new Error(errorMsg);
+    }
+    
+    console.log('[Quick Suite] URL validated as QuickSight domain:', hostname);
+
+    console.log('[Quick Suite] Creating iframe for embedded chat');
+    
+    // Create iframe following AWS QuickSight embedding guidelines
     const iframe = document.createElement('iframe');
     iframe.src = data.url;
     iframe.title = 'Quick Suite Embedded Chat';
     iframe.referrerPolicy = 'no-referrer';
+    
+    // Allow necessary permissions for QuickSight embedded chat
+    iframe.allow = 'fullscreen';
+    
+    // Add load and error event handlers for debugging
+    iframe.addEventListener('load', () => {
+      console.log('[Quick Suite] Iframe loaded successfully');
+      setQuickSuiteStatus('Quick Suite embedded chat is ready.');
+      
+      // Initialize ResizeObserver to handle dynamic sizing
+      initQuickSuiteResizeObserver();
+    });
+    
+    iframe.addEventListener('error', (e) => {
+      console.error('[Quick Suite] Iframe error:', e);
+      setQuickSuiteStatus('Failed to load Quick Suite iframe.', true);
+    });
+    
     quickSuiteFrame.appendChild(iframe);
+    console.log('[Quick Suite] Iframe appended to container');
 
-    setQuickSuiteStatus('Quick Suite embedded chat is ready.');
   } catch (error) {
+    console.error('[Quick Suite] Failed to load embedded chat:', error);
     setQuickSuiteStatus(`Unable to load Quick Suite: ${error.message}`, true);
   }
 }

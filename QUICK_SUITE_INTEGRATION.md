@@ -34,17 +34,26 @@ Chrome extensions cannot call AWS APIs with credentials directly. Create a small
 Extension -> /embed-url (your backend)
 Backend -> QuickSight GenerateEmbedUrlForRegisteredUser
 Backend -> returns { url }
-Extension -> QuickSight SDK renders embedded chat
+Extension -> Loads embed URL in iframe
 ```
 
 ### 2) Frontend (extension)
-The extension currently **renders the Quick Suite chat in an iframe** using the short-lived embed URL returned by your backend. This keeps the extension lightweight and avoids bundling the QuickSight SDK. If you later move this feature into a web app or want SDK event hooks (resize events, status callbacks), you can switch to the QuickSight Embedding SDK (v2.11+).
+The extension currently **renders the Quick Suite chat in an iframe** using the short-lived embed URL returned by your backend. This keeps the extension lightweight and avoids bundling the QuickSight SDK. 
 
-**Iframe approach (current)**
+**Key implementation details:**
+- **Responsive iframe**: The iframe uses flexbox layout with `min-height: 400px` to ensure proper sizing
+- **Dynamic resizing**: CSS allows the container to adapt to different viewport sizes
+- **Comprehensive logging**: All Quick Suite operations are logged with `[Quick Suite]` prefix for easy debugging
+- **Error handling**: Failed requests show detailed error messages in the status area
+- **Security validation**: URLs are validated to ensure they come from QuickSight domains
+
+**Iframe approach (current implementation)**
 ```javascript
 const iframe = document.createElement('iframe');
 iframe.src = embedUrl;
 iframe.title = 'Quick Suite Embedded Chat';
+iframe.allow = 'fullscreen';
+iframe.referrerPolicy = 'no-referrer';
 container.appendChild(iframe);
 ```
 
@@ -90,6 +99,14 @@ The extension settings now include:
 - **Optional agent ARN** and **initial query** inputs.
 
 When enabled, Ask Pinnacle hides the built-in chat UI and loads the Quick Suite iframe with the URL returned by your backend.
+
+**Key features:**
+- **Responsive UI**: The iframe container uses flexbox and proper min-height constraints for optimal display
+- **Comprehensive logging**: All operations are logged to browser console with `[Quick Suite]` prefix
+- **Error handling**: Clear error messages displayed in the UI with detailed logging
+- **Reload capability**: Manual refresh button to reload the embedded chat
+- **Status indicators**: Visual feedback with success/error states
+- **Security validation**: URLs validated to ensure they're from QuickSight domains
 
 ## Optional: Bedrock Agent Gateway (Recommended if you need cross-agent tools)
 
