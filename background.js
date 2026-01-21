@@ -21,6 +21,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ success: true });
     return false;
   }
+
+  if (request.action === 'summarizeHistory') {
+    handleSummaryRequest(request, sendResponse);
+    return true; // Will respond asynchronously
+  }
 });
 
 // Handle chat requests to API
@@ -84,6 +89,71 @@ async function handleChatRequest(request, sendResponse) {
     
   } catch (error) {
     console.error('Chat API Error:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+// Summarize Indici patient history
+async function handleSummaryRequest(request, sendResponse) {
+  try {
+    const settings = await chrome.storage.sync.get(['apiUrl', 'apiKey', 'model']);
+    const apiUrl = settings.apiUrl || 'https://api.openai.com/v1/chat/completions';
+    const apiKey = settings.apiKey;
+    const model = settings.model || 'gpt-3.5-turbo';
+
+    if (!apiKey) {
+      sendResponse({
+        success: false,
+        error: 'API key not configured'
+      });
+      return;
+    }
+
+    const payload = request.payload || {};
+    const payloadText = JSON.stringify(payload, null, 2).slice(0, 4000);
+
+    const requestBody = {
+      model: model,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are Ask Pinnacle, a helpful clinical assistant. Summarize patient history from extracted Indici data. Use concise bullet points, call out allergies, problems, medications, and recent timeline items. If a section is missing, explicitly say "Not available." Do not invent details.'
+        },
+        {
+          role: 'user',
+          content: `Summarize the following Indici extraction:\n${payloadText}`
+        }
+      ],
+      temperature: 0.2,
+      max_tokens: 350
+    };
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error?.message || `API request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const summary = data.choices?.[0]?.message?.content || 'No summary returned.';
+
+    sendResponse({
+      success: true,
+      summary
+    });
+  } catch (error) {
+    console.error('Summary API Error:', error);
     sendResponse({
       success: false,
       error: error.message
