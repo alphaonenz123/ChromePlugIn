@@ -113,7 +113,7 @@ async function handleSummaryRequest(request, sendResponse) {
     }
 
     const payload = request.payload || {};
-    const payloadText = JSON.stringify(payload, null, 2).slice(0, 4000);
+    const payloadText = buildSummaryPayload(payload, 4000);
 
     const requestBody = {
       model: model,
@@ -159,6 +159,60 @@ async function handleSummaryRequest(request, sendResponse) {
       error: error.message
     });
   }
+}
+
+function buildSummaryPayload(payload, maxChars) {
+  const truncateString = (value, limit) => {
+    if (value === null || value === undefined) {
+      return value;
+    }
+    const text = String(value);
+    return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+  };
+
+  const limited = {
+    sourceUrl: payload.sourceUrl,
+    pageTitle: payload.pageTitle,
+    capturedAt: payload.capturedAt,
+    demographics: {},
+    sections: {}
+  };
+
+  const demographics = payload.demographics || {};
+  Object.entries(demographics).forEach(([key, value]) => {
+    if (value) {
+      limited.demographics[key] = truncateString(value, 120);
+    }
+  });
+
+  const sections = payload.sections || {};
+  Object.entries(sections).forEach(([key, lines]) => {
+    if (Array.isArray(lines)) {
+      limited.sections[key] = lines.slice(0, 25).map(line => truncateString(line, 200));
+    }
+  });
+
+  let json = JSON.stringify(limited, null, 2);
+  if (json.length <= maxChars) {
+    return json;
+  }
+
+  const minimized = {
+    sourceUrl: limited.sourceUrl,
+    capturedAt: limited.capturedAt,
+    demographics: limited.demographics,
+    sectionKeys: Object.keys(limited.sections)
+  };
+
+  json = JSON.stringify(minimized, null, 2);
+  if (json.length <= maxChars) {
+    return json;
+  }
+
+  return JSON.stringify({
+    note: 'Payload too large; omitted details.',
+    sectionKeys: Object.keys(limited.sections)
+  });
 }
 
 // Test API connection

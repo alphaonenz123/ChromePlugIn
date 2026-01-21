@@ -362,12 +362,7 @@ function extractSectionLines(labelText) {
     .filter(Boolean)
     .filter(line => line.toLowerCase() !== labelText.toLowerCase());
 
-  const uniqueLines = [];
-  rawLines.forEach(line => {
-    if (!uniqueLines.includes(line)) {
-      uniqueLines.push(line);
-    }
-  });
+  const uniqueLines = [...new Set(rawLines)];
 
   return uniqueLines.slice(0, 25);
 }
@@ -398,29 +393,37 @@ function extractPatientHeader() {
     .filter(Boolean);
 
   const demographics = {};
+  const textBlob = lines.join(' ');
 
-  const nhiMatch = lines.join(' ').match(/NHI[:\s]*([A-Z0-9-]+)/i);
+  const nhiMatch = textBlob.match(/NHI[:\s]*([A-Z0-9-]+)/i);
   if (nhiMatch) {
     demographics.nhi = nhiMatch[1];
   }
 
-  const dobMatch = lines.join(' ').match(/(?:DOB|Date of Birth)[:\s]*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})/i);
+  const dobMatch = textBlob.match(/(?:DOB|Date of Birth)[:\s]*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})/i);
   if (dobMatch) {
     demographics.dateOfBirth = dobMatch[1];
   }
 
-  const ageMatch = lines.join(' ').match(/age[:\s]*([0-9]{1,3})/i);
+  const ageMatch = textBlob.match(/age[:\s]*([0-9]{1,3})/i);
   if (ageMatch) {
     demographics.age = ageMatch[1];
   }
 
-  const genderMatch = lines.join(' ').match(/(?:gender|sex)[:\s]*(male|female|other)/i);
+  const genderMatch = textBlob.match(/(?:gender|sex)[:\s]*(male|female|other)/i);
   if (genderMatch) {
     demographics.gender = genderMatch[1];
   }
 
+  const nameElement = document.querySelector('[data-patient-name], .patient-name, h1');
+  if (nameElement?.textContent?.trim()) {
+    demographics.name = nameElement.textContent.trim();
+    return demographics;
+  }
+
   const nhiLineIndex = lines.findIndex(line => /NHI[:\s]/i.test(line));
   if (nhiLineIndex > 0) {
+    // Fallback heuristic: some Indici layouts show the name immediately before the NHI line.
     demographics.name = lines[nhiLineIndex - 1];
   }
 

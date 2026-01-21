@@ -265,9 +265,9 @@ async function sendMessage() {
 
 function applyChatMode(quickSuiteEnabled) {
   const isEnabled = Boolean(quickSuiteEnabled);
-  quickSuiteContainer.classList.toggle('hidden', !isEnabled);
-  chatMessages.classList.toggle('hidden', isEnabled);
-  chatInputContainer.classList.toggle('hidden', isEnabled);
+  quickSuiteContainer.hidden = !isEnabled;
+  chatMessages.hidden = isEnabled;
+  chatInputContainer.hidden = isEnabled;
 }
 
 function clearQuickSuiteFrame() {
@@ -276,9 +276,7 @@ function clearQuickSuiteFrame() {
 
 function setQuickSuiteStatus(message, isError = false) {
   quickSuiteStatus.textContent = message;
-  quickSuiteStatus.style.color = isError ? '#b91c1c' : '#6b7280';
-  quickSuiteStatus.style.borderColor = isError ? '#fecaca' : '#d1d5db';
-  quickSuiteStatus.style.background = isError ? '#fef2f2' : '#f9fafb';
+  quickSuiteStatus.classList.toggle('error', isError);
 }
 
 async function loadQuickSuiteEmbed(settings) {

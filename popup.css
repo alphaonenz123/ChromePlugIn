@@ -109,10 +109,6 @@ body {
   flex-direction: column;
 }
 
-.hidden {
-  display: none !important;
-}
-
 /* Chat Tab */
 #chat-tab {
   background: white;
@@ -145,6 +141,12 @@ body {
   border: 1px dashed #d1d5db;
   border-radius: 8px;
   padding: 8px;
+}
+
+.quicksuite-status.error {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
 }
 
 .quicksuite-frame {

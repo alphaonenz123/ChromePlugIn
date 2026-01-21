@@ -12,7 +12,7 @@ This document outlines the recommended way to integrate **Amazon Quick Suite Emb
 ### High-level flow
 1. **Chrome extension** requests an embed URL from a **backend service** (Lambda/API).
 2. Backend calls `GenerateEmbedUrlForRegisteredUser` for the Quick Suite Chat experience.
-3. Extension loads the URL with the **QuickSight Embedding SDK** and renders the chat in a container.
+3. Extension loads the URL in an **iframe** and renders the chat in a container (current implementation).
 
 ## Chrome Extension Implementation Plan
 
@@ -38,9 +38,17 @@ Extension -> QuickSight SDK renders embedded chat
 ```
 
 ### 2) Frontend (extension)
-Use the QuickSight Embedding SDK (v2.11+). Render chat inside the existing Ask Pinnacle chat container.
+The extension currently **renders the Quick Suite chat in an iframe** using the short-lived embed URL returned by your backend. This keeps the extension lightweight and avoids bundling the QuickSight SDK. If you later move this feature into a web app or want SDK event hooks (resize events, status callbacks), you can switch to the QuickSight Embedding SDK (v2.11+).
 
-**Example**
+**Iframe approach (current)**
+```javascript
+const iframe = document.createElement('iframe');
+iframe.src = embedUrl;
+iframe.title = 'Quick Suite Embedded Chat';
+container.appendChild(iframe);
+```
+
+**SDK alternative (optional)**
 ```javascript
 import { createEmbeddingContext } from 'amazon-quicksight-embedding-sdk';
 

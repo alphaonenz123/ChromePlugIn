@@ -12,6 +12,9 @@
     "http://*/*",
     "https://*/*"
   ],
+  "content_security_policy": {
+    "extension_pages": "frame-src https://*.quicksight.aws.amazon.com/;"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
