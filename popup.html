@@ -27,6 +27,19 @@
 
     <!-- Chat Tab -->
     <div id="chat-tab" class="tab-content active">
+      <div id="quicksuite-container" class="quicksuite-container" hidden>
+        <div class="quicksuite-header">
+          <h3>Quick Suite Chat</h3>
+          <button id="quicksuite-refresh" class="secondary-button small-button">Reload</button>
+        </div>
+        <div id="quicksuite-status" class="quicksuite-status">
+          Configure Quick Suite settings to load the embedded chat.
+        </div>
+        <div id="quicksuite-frame" class="quicksuite-frame"></div>
+        <p class="quicksuite-note">
+          This view uses the Amazon Quick Suite embedded chat experience.
+        </p>
+      </div>
       <div id="chat-messages" class="chat-messages">
         <div class="message bot">
           <span class="message-icon"><img src="icon-pinnacle-playful.svg" alt="Ask Pinnacle" class="bot-avatar"></span>
@@ -72,6 +85,9 @@
           </button>
           <button class="action-btn" data-action="updateRecords">
             ✏️ Update Records
+          </button>
+          <button class="action-btn" data-action="summarizeHistory">
+            🧾 Summarize Patient History (Indici)
           </button>
         </div>
       </div>
@@ -138,6 +154,40 @@
 
         <button id="save-settings" class="primary-button">Save Settings</button>
         <button id="test-connection" class="secondary-button">Test API Connection</button>
+
+        <h3>Quick Suite (Default Agent)</h3>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="enable-quicksuite">
+            Use Quick Suite embedded chat as the default agent
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="quicksuite-endpoint">Embed URL Endpoint</label>
+          <input
+            type="url"
+            id="quicksuite-endpoint"
+            placeholder="https://your-backend.example.com/quicksuite/embed-url"
+          >
+          <small>Endpoint should return JSON: { "url": "https://..." }</small>
+        </div>
+        <div class="form-group">
+          <label for="quicksuite-agent-arn">Fixed Agent ARN (optional)</label>
+          <input
+            type="text"
+            id="quicksuite-agent-arn"
+            placeholder="arn:aws:quicksight:region:account:agent/agent-id"
+          >
+          <small>Passed to your backend to target a specific chat agent.</small>
+        </div>
+        <div class="form-group">
+          <label for="quicksuite-initial-query">Initial Query (optional)</label>
+          <input
+            type="text"
+            id="quicksuite-initial-query"
+            placeholder="Summarize the current patient history"
+          >
+        </div>
       </div>
     </div>
 

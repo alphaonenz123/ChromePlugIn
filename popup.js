@@ -5,6 +5,11 @@ const sendButton = document.getElementById('send-button');
 const actionLog = document.getElementById('action-log');
 const statusIndicator = document.getElementById('status-indicator');
 const statusText = document.getElementById('status-text');
+const quickSuiteContainer = document.getElementById('quicksuite-container');
+const quickSuiteFrame = document.getElementById('quicksuite-frame');
+const quickSuiteStatus = document.getElementById('quicksuite-status');
+const quickSuiteRefresh = document.getElementById('quicksuite-refresh');
+const chatInputContainer = document.querySelector('.chat-input-container');
 
 // Tab switching
 document.querySelectorAll('.tab-button').forEach(button => {
@@ -23,7 +28,17 @@ document.querySelectorAll('.tab-button').forEach(button => {
 
 // Load saved settings
 async function loadSettings() {
-  const settings = await chrome.storage.sync.get(['apiUrl', 'apiKey', 'model', 'autoDetectPms', 'pmsUrl']);
+  const settings = await chrome.storage.sync.get([
+    'apiUrl',
+    'apiKey',
+    'model',
+    'autoDetectPms',
+    'pmsUrl',
+    'quickSuiteEnabled',
+    'quickSuiteEndpoint',
+    'quickSuiteAgentArn',
+    'quickSuiteInitialQuery'
+  ]);
   
   if (settings.apiUrl) {
     document.getElementById('api-url').value = settings.apiUrl;
@@ -40,10 +55,27 @@ async function loadSettings() {
   if (settings.autoDetectPms !== undefined) {
     document.getElementById('auto-detect-pms').checked = settings.autoDetectPms;
   }
+  if (settings.quickSuiteEnabled !== undefined) {
+    document.getElementById('enable-quicksuite').checked = settings.quickSuiteEnabled;
+  }
+  if (settings.quickSuiteEndpoint) {
+    document.getElementById('quicksuite-endpoint').value = settings.quickSuiteEndpoint;
+  }
+  if (settings.quickSuiteAgentArn) {
+    document.getElementById('quicksuite-agent-arn').value = settings.quickSuiteAgentArn;
+  }
+  if (settings.quickSuiteInitialQuery) {
+    document.getElementById('quicksuite-initial-query').value = settings.quickSuiteInitialQuery;
+  }
   
   // Update status indicator
   if (settings.apiKey) {
     updateStatus(true);
+  }
+
+  applyChatMode(settings.quickSuiteEnabled);
+  if (settings.quickSuiteEnabled) {
+    await loadQuickSuiteEmbed(settings);
   }
 }
 
@@ -67,7 +99,11 @@ document.getElementById('save-settings').addEventListener('click', async () => {
     apiKey: document.getElementById('api-key').value,
     model: document.getElementById('model-select').value,
     autoDetectPms: document.getElementById('auto-detect-pms').checked,
-    pmsUrl: document.getElementById('pms-url').value
+    pmsUrl: document.getElementById('pms-url').value,
+    quickSuiteEnabled: document.getElementById('enable-quicksuite').checked,
+    quickSuiteEndpoint: document.getElementById('quicksuite-endpoint').value,
+    quickSuiteAgentArn: document.getElementById('quicksuite-agent-arn').value,
+    quickSuiteInitialQuery: document.getElementById('quicksuite-initial-query').value
   };
   
   await chrome.storage.sync.set(settings);
@@ -79,9 +115,26 @@ document.getElementById('save-settings').addEventListener('click', async () => {
   if (settings.apiKey) {
     updateStatus(true);
   }
+
+  applyChatMode(settings.quickSuiteEnabled);
+  if (settings.quickSuiteEnabled) {
+    await loadQuickSuiteEmbed(settings);
+  }
   
   // Switch back to chat tab
   document.querySelector('[data-tab="chat"]').click();
+});
+
+quickSuiteRefresh.addEventListener('click', async () => {
+  const settings = await chrome.storage.sync.get([
+    'quickSuiteEnabled',
+    'quickSuiteEndpoint',
+    'quickSuiteAgentArn',
+    'quickSuiteInitialQuery'
+  ]);
+  if (settings.quickSuiteEnabled) {
+    await loadQuickSuiteEmbed(settings);
+  }
 });
 
 // Test API connection
@@ -207,6 +260,69 @@ async function sendMessage() {
   } catch (error) {
     loadingMsg.remove();
     addMessage(`Error: ${error.message}`, 'error', '⚠️');
+  }
+}
+
+function applyChatMode(quickSuiteEnabled) {
+  const isEnabled = Boolean(quickSuiteEnabled);
+  quickSuiteContainer.hidden = !isEnabled;
+  chatMessages.hidden = isEnabled;
+  chatInputContainer.hidden = isEnabled;
+}
+
+function clearQuickSuiteFrame() {
+  quickSuiteFrame.innerHTML = '';
+}
+
+function setQuickSuiteStatus(message, isError = false) {
+  quickSuiteStatus.textContent = message;
+  quickSuiteStatus.classList.toggle('error', isError);
+}
+
+async function loadQuickSuiteEmbed(settings) {
+  const endpoint = settings.quickSuiteEndpoint;
+  const agentArn = settings.quickSuiteAgentArn;
+  const initialQuery = settings.quickSuiteInitialQuery;
+
+  clearQuickSuiteFrame();
+
+  if (!endpoint) {
+    setQuickSuiteStatus('Add an embed URL endpoint in Settings to load Quick Suite.', true);
+    return;
+  }
+
+  setQuickSuiteStatus('Loading Quick Suite embed URL...');
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        agentArn,
+        initialQuery
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Embed URL request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data?.url) {
+      throw new Error('Embed URL response did not include a "url" field.');
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.src = data.url;
+    iframe.title = 'Quick Suite Embedded Chat';
+    iframe.referrerPolicy = 'no-referrer';
+    quickSuiteFrame.appendChild(iframe);
+
+    setQuickSuiteStatus('Quick Suite embedded chat is ready.');
+  } catch (error) {
+    setQuickSuiteStatus(`Unable to load Quick Suite: ${error.message}`, true);
   }
 }
 

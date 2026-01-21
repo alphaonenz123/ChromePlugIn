@@ -55,6 +55,9 @@ async function handleRpaAction(actionType) {
     
     case 'updateRecords':
       return await updateRecords();
+
+    case 'summarizeHistory':
+      return await summarizePatientHistory();
     
     default:
       throw new Error('Unknown action type: ' + actionType);
@@ -296,6 +299,135 @@ async function updateRecords() {
   }
   
   throw new Error('No editable fields or edit buttons found on this page');
+}
+
+// RPA Action: Summarize Patient History (Indici)
+async function summarizePatientHistory() {
+  const payload = extractIndiciPatientHistory();
+
+  if (!payload || Object.keys(payload.sections).length === 0) {
+    throw new Error('No Indici patient history sections found on this page');
+  }
+
+  const summaryResponse = await chrome.runtime.sendMessage({
+    action: 'summarizeHistory',
+    payload
+  });
+
+  if (!summaryResponse || !summaryResponse.success) {
+    throw new Error(summaryResponse?.error || 'Failed to summarize patient history');
+  }
+
+  return `Indici Patient History Summary:\n${summaryResponse.summary}`;
+}
+
+function extractIndiciPatientHistory() {
+  const sectionsConfig = [
+    { key: 'alerts', label: 'Alerts' },
+    { key: 'allergies', label: 'Allergies' },
+    { key: 'problemList', label: 'Problem List' },
+    { key: 'longTermMedications', label: 'Long Term Medications' },
+    { key: 'recentMeasurements', label: 'Recent Measurements & Prompts' },
+    { key: 'timeline', label: 'Timeline' },
+    { key: 'notes', label: 'Notes' }
+  ];
+
+  const sections = {};
+  sectionsConfig.forEach(({ key, label }) => {
+    const lines = extractSectionLines(label);
+    if (lines.length > 0) {
+      sections[key] = lines;
+    }
+  });
+
+  return {
+    sourceUrl: window.location.href,
+    pageTitle: document.title,
+    capturedAt: new Date().toISOString(),
+    demographics: extractPatientHeader(),
+    sections
+  };
+}
+
+function extractSectionLines(labelText) {
+  const container = findSectionContainer(labelText);
+
+  if (!container) {
+    return [];
+  }
+
+  const rawLines = container.innerText
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .filter(line => line.toLowerCase() !== labelText.toLowerCase());
+
+  const uniqueLines = [...new Set(rawLines)];
+
+  return uniqueLines.slice(0, 25);
+}
+
+function findSectionContainer(labelText) {
+  const normalizedLabel = labelText.toLowerCase();
+  const candidates = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, th, label, button, span, div'));
+
+  const heading = candidates.find(element => {
+    const text = (element.textContent || '').trim().toLowerCase();
+    return text === normalizedLabel;
+  });
+
+  if (!heading) {
+    return null;
+  }
+
+  return (
+    heading.closest('[role="region"], section, article, div, table, ul, ol') ||
+    heading.parentElement
+  );
+}
+
+function extractPatientHeader() {
+  const lines = document.body.innerText
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  const demographics = {};
+  const textBlob = lines.join(' ');
+
+  const nhiMatch = textBlob.match(/NHI[:\s]*([A-Z0-9-]+)/i);
+  if (nhiMatch) {
+    demographics.nhi = nhiMatch[1];
+  }
+
+  const dobMatch = textBlob.match(/(?:DOB|Date of Birth)[:\s]*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})/i);
+  if (dobMatch) {
+    demographics.dateOfBirth = dobMatch[1];
+  }
+
+  const ageMatch = textBlob.match(/age[:\s]*([0-9]{1,3})/i);
+  if (ageMatch) {
+    demographics.age = ageMatch[1];
+  }
+
+  const genderMatch = textBlob.match(/(?:gender|sex)[:\s]*(male|female|other)/i);
+  if (genderMatch) {
+    demographics.gender = genderMatch[1];
+  }
+
+  const nameElement = document.querySelector('[data-patient-name], .patient-name, h1');
+  if (nameElement?.textContent?.trim()) {
+    demographics.name = nameElement.textContent.trim();
+    return demographics;
+  }
+
+  const nhiLineIndex = lines.findIndex(line => /NHI[:\s]/i.test(line));
+  if (nhiLineIndex > 0) {
+    // Fallback heuristic: some Indici layouts show the name immediately before the NHI line.
+    demographics.name = lines[nhiLineIndex - 1];
+  }
+
+  return demographics;
 }
 
 // Helper: Find inputs by keywords
