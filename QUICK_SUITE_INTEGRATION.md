@@ -1,5 +1,7 @@
 # Amazon Quick Suite (QuickSight) Embedded Chat Integration
 
+**Note**: This extension now includes **authentication support** for protected Quick Suite endpoints. See [AUTHENTICATION.md](AUTHENTICATION.md) for complete authentication setup instructions.
+
 This document outlines the recommended way to integrate **Amazon Quick Suite Embedded Chat** as the **default agent** inside Ask Pinnacle, plus alternatives if you need more control or cross-agent orchestration.
 
 ## Recommendation: Use Quick Suite Embedded Chat as the Default Agent
@@ -18,9 +20,15 @@ This document outlines the recommended way to integrate **Amazon Quick Suite Emb
 
 ### 1) Backend (required)
 Chrome extensions cannot call AWS APIs with credentials directly. Create a small backend (Lambda + API Gateway is typical) to:
-- Validate the current user/session.
-- Call `GenerateEmbedUrlForRegisteredUser`.
-- Return a short-lived **embed URL** to the extension.
+- **Authenticate users** and provide session tokens (see [AUTHENTICATION.md](AUTHENTICATION.md))
+- Validate the current user/session
+- Call `GenerateEmbedUrlForRegisteredUser`
+- Return a short-lived **embed URL** to the extension
+
+**Important**: The backend must now include authentication endpoints:
+- `/auth/login` - Returns authentication token
+- `/auth/check` - Validates token
+- Quick Suite endpoint - Requires valid auth token in request headers
 
 **Expected response shape**
 ```json
@@ -31,8 +39,14 @@ Chrome extensions cannot call AWS APIs with credentials directly. Create a small
 
 **Pseudo flow**
 ```
-Extension -> /embed-url (your backend)
-Backend -> QuickSight GenerateEmbedUrlForRegisteredUser
+User -> Extension Settings -> Login (username/password or token)
+Extension -> /auth/login (your backend)
+Backend -> validates credentials, returns JWT token
+Extension -> stores token in chrome.storage.sync
+
+Later, when loading Quick Suite:
+Extension -> /embed-url (your backend) with Authorization: Bearer {token}
+Backend -> validates token, calls QuickSight GenerateEmbedUrlForRegisteredUser
 Backend -> returns { url }
 Extension -> Loads embed URL in iframe
 ```
@@ -94,11 +108,16 @@ QuickSuite is hosted on AWS domains and must be allowlisted in the extension CSP
 
 ### 4) Ask Pinnacle settings wiring (implemented)
 The extension settings now include:
-- **Enable Quick Suite** toggle to switch the chat tab into embedded mode.
-- **Embed URL endpoint** that the extension POSTs to with `{ agentArn, initialQuery }`.
-- **Optional agent ARN** and **initial query** inputs.
+- **Authentication section** with login/logout functionality
+- **Enable Quick Suite** toggle to switch the chat tab into embedded mode
+- **Embed URL endpoint** that the extension POSTs to with `{ agentArn, initialQuery }` and authentication token
+- **Optional agent ARN** and **initial query** inputs
 
-When enabled, Ask Pinnacle hides the built-in chat UI and loads the Quick Suite iframe with the URL returned by your backend.
+When enabled and authenticated, Ask Pinnacle:
+1. Checks authentication status
+2. Uses stored auth token for API calls
+3. Hides the built-in chat UI and loads the Quick Suite iframe
+4. Automatically prompts for re-authentication if session expires
 
 **Key features:**
 - **Responsive UI**: The iframe container uses flexbox and proper min-height constraints for optimal display
