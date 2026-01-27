@@ -532,18 +532,65 @@ async function handleLogout(request, sendResponse) {
 }
 
 /**
+ * Validate that a URL uses HTTPS protocol (security requirement)
+ * @param {string} url - The URL to validate
+ * @returns {boolean} - True if URL is HTTPS
+ */
+function isHttpsUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Validate that a URL is from QuickSight domain
+ * Uses explicit regex pattern to prevent subdomain attacks
+ * @param {string} url - The URL to validate
+ * @returns {boolean} - True if URL is from valid QuickSight domain
+ */
+function isValidQuickSightUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+    // Must be exactly *.quicksight.aws.amazon.com or quicksight.aws.amazon.com
+    // Pattern prevents attacks like: attacker.quicksight.aws.amazon.com.evil.com
+    const quicksightPattern = /^([a-z0-9-]+\.)?quicksight\.aws\.amazon\.com$/;
+    return urlObj.protocol === 'https:' && quicksightPattern.test(hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Get Quick Suite embed URL with authentication
  * This wraps the embed URL fetch with auth token handling
+ *
+ * Supports:
+ * - agentArn: Specific QuickSight agent ARN
+ * - initialQuery: Initial question for the chat
+ * - topicId: Curated Q Topic ID for GenerativeQnA experience
  */
 async function getQuickSuiteEmbedUrl(request, sendResponse) {
-  const { endpoint, agentArn, initialQuery } = request;
-  
+  const { endpoint, agentArn, initialQuery, topicId } = request;
+
   try {
     console.log('[Auth] Fetching Quick Suite embed URL with auth');
-    
+
+    // Security: Validate endpoint is HTTPS
+    if (!isHttpsUrl(endpoint)) {
+      sendResponse({
+        success: false,
+        error: 'Security Error: Endpoint must use HTTPS'
+      });
+      return;
+    }
+
     // Get stored auth token
     const storage = await chrome.storage.sync.get(['authToken', 'authExpiry']);
-    
+
     // Check if token is valid
     if (!storage.authToken || !storage.authExpiry || Date.now() >= storage.authExpiry) {
       sendResponse({
@@ -553,7 +600,30 @@ async function getQuickSuiteEmbedUrl(request, sendResponse) {
       });
       return;
     }
-    
+
+    // Build request body with all supported parameters
+    const requestBody = {
+      agentArn: agentArn || undefined,
+      initialQuery: initialQuery || undefined,
+      // TopicId for curated GenerativeQnA experience
+      // This is passed to GenerateEmbedUrlForRegisteredUser API
+      // ExperienceConfiguration.GenerativeQnA.InitialTopicId
+      topicId: topicId || undefined
+    };
+
+    // Remove undefined values
+    Object.keys(requestBody).forEach(key => {
+      if (requestBody[key] === undefined) {
+        delete requestBody[key];
+      }
+    });
+
+    console.log('[Auth] Request body:', {
+      hasAgentArn: !!agentArn,
+      hasInitialQuery: !!initialQuery,
+      hasTopicId: !!topicId
+    });
+
     // Make authenticated request to get embed URL
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -561,17 +631,14 @@ async function getQuickSuiteEmbedUrl(request, sendResponse) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${storage.authToken}`
       },
-      body: JSON.stringify({
-        agentArn,
-        initialQuery
-      })
+      body: JSON.stringify(requestBody)
     });
-    
+
     // Handle authentication errors
     if (response.status === 401 || response.status === 403) {
       // Clear invalid token
       await chrome.storage.sync.remove(['authToken', 'authExpiry', 'username']);
-      
+
       sendResponse({
         success: false,
         requiresAuth: true,
@@ -579,18 +646,23 @@ async function getQuickSuiteEmbedUrl(request, sendResponse) {
       });
       return;
     }
-    
+
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'No error details available');
       throw new Error(`Request failed with status ${response.status}: ${errorText}`);
     }
-    
+
     const data = await response.json();
-    
+
     if (!data?.url) {
       throw new Error('Embed URL response did not include a "url" field');
     }
-    
+
+    // Security: Validate the returned URL is from QuickSight domain
+    if (!isValidQuickSightUrl(data.url)) {
+      throw new Error('Security Error: Returned URL is not from a valid QuickSight domain');
+    }
+
     sendResponse({
       success: true,
       url: data.url

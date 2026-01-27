@@ -226,7 +226,16 @@
             id="quicksuite-endpoint"
             placeholder="https://your-backend.example.com/quicksuite/embed-url"
           >
-          <small>Endpoint should return JSON: { "url": "https://..." }</small>
+          <small>Endpoint should return JSON: { "url": "https://..." }. Must be HTTPS.</small>
+        </div>
+        <div class="form-group">
+          <label for="quicksuite-topic-id">Topic ID (Curated Q&A)</label>
+          <input
+            type="text"
+            id="quicksuite-topic-id"
+            placeholder="your-topic-id"
+          >
+          <small>QuickSight Q Topic ID for curated chat experience. Find this in QuickSight > Data > Topics.</small>
         </div>
         <div class="form-group">
           <label for="quicksuite-agent-arn">Fixed Agent ARN (optional)</label>
@@ -244,6 +253,28 @@
             id="quicksuite-initial-query"
             placeholder="Summarize the current patient history"
           >
+        </div>
+
+        <h4>Embedding Method</h4>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="quicksuite-use-wrapper">
+            Use HTTPS Wrapper (Recommended for Chrome extensions)
+          </label>
+          <small>Routes embedding through an HTTPS page to avoid QuickSight domain restrictions.</small>
+        </div>
+        <div class="form-group" id="wrapper-url-group" style="display: none;">
+          <label for="quicksuite-wrapper-url">HTTPS Wrapper URL</label>
+          <input
+            type="url"
+            id="quicksuite-wrapper-url"
+            placeholder="https://your-domain.com/quicksight-wrapper.html"
+          >
+          <small>Host the provided wrapper template on your HTTPS domain and allowlist it in QuickSight.</small>
+        </div>
+
+        <div class="button-group" style="margin-top: 16px;">
+          <button id="open-sidepanel" class="secondary-button">Open Side Panel Chat</button>
         </div>
       </div>
     </div>

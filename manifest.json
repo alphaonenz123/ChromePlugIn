@@ -1,20 +1,21 @@
 {
   "manifest_version": 3,
   "name": "Ask Pinnacle",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Your playful AI assistant from Pinnacle Health - helping with patient management tasks with a smile!",
   "permissions": [
     "activeTab",
     "storage",
     "scripting",
-    "contextMenus"
+    "contextMenus",
+    "sidePanel"
   ],
   "host_permissions": [
     "http://*/*",
     "https://*/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; frame-src https://*.quicksight.aws.amazon.com/;"
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src https://*.quicksight.aws.amazon.com/ https:;"
   },
   "action": {
     "default_popup": "popup.html",
@@ -31,6 +32,9 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
   "background": {
     "service_worker": "background.js"
   },
@@ -43,7 +47,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["icons/*"],
+      "resources": ["icons/*", "icon-pinnacle-playful.svg"],
       "matches": ["<all_urls>"]
     }
   ]
