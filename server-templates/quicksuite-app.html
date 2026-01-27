@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; frame-src https://*.quicksight.aws.amazon.com/; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.amazoncognito.com https://*.auth.*.amazoncognito.com https://*.quicksight.aws.amazon.com;">
+  <title>Quick Suite</title>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Container */
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #05A3DD 0%, #74D63C 100%);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .header h1 {
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .user-info {
+      color: white;
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .btn {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    /* Main content */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Login View */
+    .login-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      background: white;
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 360px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+      padding: 32px;
+    }
+
+    .login-card h2 {
+      text-align: center;
+      margin-bottom: 8px;
+      color: #1f2937;
+    }
+
+    .login-card p {
+      text-align: center;
+      color: #6b7280;
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus {
+      border-color: #05A3DD;
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 12px;
+      background: #05A3DD;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .login-btn:hover {
+      background: #0489BB;
+    }
+
+    .login-btn:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .sso-divider {
+      display: flex;
+      align-items: center;
+      margin: 20px 0;
+      color: #9ca3af;
+      font-size: 13px;
+    }
+
+    .sso-divider::before,
+    .sso-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e5e7eb;
+    }
+
+    .sso-divider span {
+      padding: 0 12px;
+    }
+
+    .sso-btn {
+      width: 100%;
+      padding: 12px;
+      background: white;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .sso-btn:hover {
+      background: #f9fafb;
+      border-color: #05A3DD;
+    }
+
+    .error-msg {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+
+    /* Loading View */
+    .loading-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: white;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #e5e7eb;
+      border-top-color: #05A3DD;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-view p {
+      margin-top: 16px;
+      color: #6b7280;
+    }
+
+    /* QuickSight Container */
+    .quicksight-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: white;
+    }
+
+    .quicksight-container iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    /* Error View */
+    .error-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      background: white;
+      text-align: center;
+    }
+
+    .error-view h2 {
+      color: #991b1b;
+      margin-bottom: 8px;
+    }
+
+    .error-view p {
+      color: #6b7280;
+      margin-bottom: 16px;
+      max-width: 300px;
+    }
+
+    .retry-btn {
+      padding: 10px 24px;
+      background: #05A3DD;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    /* Hidden state */
+    [hidden] {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header (hidden until logged in) -->
+    <div class="header" id="header" hidden>
+      <h1>Quick Suite</h1>
+      <div class="header-actions">
+        <span class="user-info" id="user-info"></span>
+        <button class="btn" id="logout-btn">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="main-content">
+      <!-- Login View -->
+      <div class="login-view" id="login-view">
+        <div class="login-card">
+          <h2>Welcome</h2>
+          <p>Sign in to access Quick Suite</p>
+
+          <div class="error-msg" id="login-error" hidden></div>
+
+          <!-- SSO Button (primary for Cognito/Identity Center) -->
+          <button class="sso-btn" id="sso-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+              <polyline points="10 17 15 12 10 7"/>
+              <line x1="15" y1="12" x2="3" y2="12"/>
+            </svg>
+            Sign in with SSO
+          </button>
+
+          <div class="sso-divider"><span>or sign in with email</span></div>
+
+          <!-- Email/Password form (fallback) -->
+          <form id="login-form">
+            <div class="form-group">
+              <label for="email">Email</label>
+              <input type="email" id="email" placeholder="you@company.com" required>
+            </div>
+            <div class="form-group">
+              <label for="password">Password</label>
+              <input type="password" id="password" placeholder="Enter your password" required>
+            </div>
+            <button type="submit" class="login-btn" id="login-btn">Sign In</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Loading View -->
+      <div class="loading-view" id="loading-view" hidden>
+        <div class="spinner"></div>
+        <p id="loading-text">Loading Quick Suite...</p>
+      </div>
+
+      <!-- Error View -->
+      <div class="error-view" id="error-view" hidden>
+        <h2>Something went wrong</h2>
+        <p id="error-text">Unable to load Quick Suite. Please try again.</p>
+        <button class="retry-btn" id="retry-btn">Try Again</button>
+      </div>
+
+      <!-- QuickSight Container -->
+      <div class="quicksight-container" id="quicksight-container" hidden></div>
+    </div>
+  </div>
+
+  <!-- AWS Amplify for Cognito Auth -->
+  <script src="https://cdn.jsdelivr.net/npm/aws-amplify@6/dist/aws-amplify.min.js"></script>
+  <!-- QuickSight Embedding SDK -->
+  <script src="https://unpkg.com/amazon-quicksight-embedding-sdk@2.7.0/dist/quicksight-embedding-js-sdk.min.js"></script>
+
+  <script>
+    /**
+     * Quick Suite App
+     *
+     * This hosted app handles:
+     * 1. User authentication via AWS Cognito
+     * 2. QuickSight embed URL generation
+     * 3. QuickSight SDK embedding
+     *
+     * CONFIGURATION:
+     * All configuration is done via the CONFIG object below.
+     * In production, inject these values server-side or load from API.
+     */
+
+    // ============================================================
+    // CONFIGURATION - Update these values for your environment
+    // ============================================================
+    const CONFIG = {
+      // AWS Cognito Configuration
+      cognito: {
+        userPoolId: 'us-east-1_XXXXXXXXX',           // Your Cognito User Pool ID
+        userPoolClientId: 'xxxxxxxxxxxxxxxxxxxxxxxxxx', // App client ID
+        region: 'us-east-1',
+        // Optional: Hosted UI domain for SSO
+        hostedUiDomain: 'your-app.auth.us-east-1.amazoncognito.com',
+        // Optional: Identity Provider name for SSO
+        identityProvider: null  // e.g., 'AWSSSO' or 'Okta'
+      },
+
+      // Backend API for embed URL generation
+      api: {
+        baseUrl: '/api',  // Your backend API base URL
+        embedUrlEndpoint: '/quicksight/embed-url'
+      },
+
+      // QuickSight Configuration (handled by backend, shown here for reference)
+      quicksight: {
+        // These are configured on the backend, not exposed to frontend
+        // topicId: 'your-topic-id',
+        // region: 'us-east-1'
+      }
+    };
+
+    // ============================================================
+    // APP STATE
+    // ============================================================
+    let currentUser = null;
+    let authTokens = null;
+
+    // ============================================================
+    // DOM ELEMENTS
+    // ============================================================
+    const headerEl = document.getElementById('header');
+    const userInfoEl = document.getElementById('user-info');
+    const logoutBtn = document.getElementById('logout-btn');
+    const loginViewEl = document.getElementById('login-view');
+    const loadingViewEl = document.getElementById('loading-view');
+    const loadingTextEl = document.getElementById('loading-text');
+    const errorViewEl = document.getElementById('error-view');
+    const errorTextEl = document.getElementById('error-text');
+    const quicksightContainerEl = document.getElementById('quicksight-container');
+    const loginFormEl = document.getElementById('login-form');
+    const loginErrorEl = document.getElementById('login-error');
+    const ssoBtnEl = document.getElementById('sso-btn');
+    const retryBtnEl = document.getElementById('retry-btn');
+
+    // ============================================================
+    // VIEW MANAGEMENT
+    // ============================================================
+    function showView(view) {
+      loginViewEl.hidden = view !== 'login';
+      loadingViewEl.hidden = view !== 'loading';
+      errorViewEl.hidden = view !== 'error';
+      quicksightContainerEl.hidden = view !== 'quicksight';
+      headerEl.hidden = view === 'login';
+    }
+
+    function showLoading(message = 'Loading...') {
+      loadingTextEl.textContent = message;
+      showView('loading');
+    }
+
+    function showError(message) {
+      errorTextEl.textContent = message;
+      showView('error');
+    }
+
+    function showLoginError(message) {
+      loginErrorEl.textContent = message;
+      loginErrorEl.hidden = false;
+    }
+
+    function hideLoginError() {
+      loginErrorEl.hidden = true;
+    }
+
+    // ============================================================
+    // AUTHENTICATION (Cognito)
+    // ============================================================
+
+    /**
+     * Initialize Amplify with Cognito configuration
+     */
+    function initAuth() {
+      // Configure Amplify
+      window.Amplify.configure({
+        Auth: {
+          Cognito: {
+            userPoolId: CONFIG.cognito.userPoolId,
+            userPoolClientId: CONFIG.cognito.userPoolClientId,
+            region: CONFIG.cognito.region,
+            loginWith: {
+              oauth: CONFIG.cognito.hostedUiDomain ? {
+                domain: CONFIG.cognito.hostedUiDomain,
+                scopes: ['openid', 'email', 'profile'],
+                redirectSignIn: [window.location.origin],
+                redirectSignOut: [window.location.origin],
+                responseType: 'code'
+              } : undefined
+            }
+          }
+        }
+      });
+    }
+
+    /**
+     * Check if user is already authenticated
+     */
+    async function checkAuth() {
+      try {
+        const session = await window.Amplify.Auth.fetchAuthSession();
+        if (session.tokens) {
+          const user = await window.Amplify.Auth.getCurrentUser();
+          return {
+            user,
+            tokens: session.tokens
+          };
+        }
+      } catch (e) {
+        console.log('[Auth] No active session');
+      }
+      return null;
+    }
+
+    /**
+     * Sign in with email/password
+     */
+    async function signInWithEmail(email, password) {
+      hideLoginError();
+      const loginBtn = document.getElementById('login-btn');
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Signing in...';
+
+      try {
+        const result = await window.Amplify.Auth.signIn({
+          username: email,
+          password: password
+        });
+
+        if (result.isSignedIn) {
+          await onAuthSuccess();
+        } else {
+          // Handle MFA or other challenges
+          showLoginError('Additional verification required. Please contact support.');
+        }
+      } catch (error) {
+        console.error('[Auth] Sign in error:', error);
+        showLoginError(error.message || 'Sign in failed. Please check your credentials.');
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Sign In';
+      }
+    }
+
+    /**
+     * Sign in with SSO (Hosted UI)
+     */
+    async function signInWithSSO() {
+      try {
+        if (CONFIG.cognito.identityProvider) {
+          // Federated sign-in with specific provider
+          await window.Amplify.Auth.signInWithRedirect({
+            provider: CONFIG.cognito.identityProvider
+          });
+        } else {
+          // Generic hosted UI
+          await window.Amplify.Auth.signInWithRedirect();
+        }
+      } catch (error) {
+        console.error('[Auth] SSO error:', error);
+        showLoginError('SSO sign in failed. Please try again.');
+      }
+    }
+
+    /**
+     * Sign out
+     */
+    async function signOut() {
+      try {
+        await window.Amplify.Auth.signOut();
+        currentUser = null;
+        authTokens = null;
+        showView('login');
+      } catch (error) {
+        console.error('[Auth] Sign out error:', error);
+      }
+    }
+
+    /**
+     * Called when authentication succeeds
+     */
+    async function onAuthSuccess() {
+      showLoading('Authenticating...');
+
+      const session = await checkAuth();
+      if (!session) {
+        showError('Authentication failed');
+        return;
+      }
+
+      currentUser = session.user;
+      authTokens = session.tokens;
+
+      // Update UI
+      const email = session.user.signInDetails?.loginId || session.user.username;
+      userInfoEl.textContent = email;
+
+      // Load QuickSight
+      await loadQuickSight();
+    }
+
+    // ============================================================
+    // QUICKSIGHT EMBEDDING
+    // ============================================================
+
+    /**
+     * Get embed URL from backend
+     */
+    async function getEmbedUrl() {
+      const idToken = authTokens.idToken.toString();
+
+      const response = await fetch(`${CONFIG.api.baseUrl}${CONFIG.api.embedUrlEndpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || `Request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.url;
+    }
+
+    /**
+     * Load QuickSight embedded experience
+     */
+    async function loadQuickSight() {
+      showLoading('Loading Quick Suite...');
+
+      try {
+        // Get embed URL from backend
+        const embedUrl = await getEmbedUrl();
+
+        // Validate URL is from QuickSight
+        const urlObj = new URL(embedUrl);
+        if (!urlObj.hostname.endsWith('.quicksight.aws.amazon.com')) {
+          throw new Error('Invalid embed URL');
+        }
+
+        // Clear container
+        quicksightContainerEl.innerHTML = '';
+
+        // Use QuickSight SDK to embed
+        const embeddingContext = await QuickSightEmbedding.createEmbeddingContext();
+
+        // Determine experience type from URL
+        const isQnA = embedUrl.includes('generativeqna') ||
+                      embedUrl.includes('q/') ||
+                      embedUrl.includes('qsearch');
+
+        let embeddedContent;
+
+        if (isQnA) {
+          embeddedContent = await embeddingContext.embedGenerativeQnA({
+            url: embedUrl,
+            container: quicksightContainerEl,
+            width: '100%',
+            height: '100%'
+          });
+        } else {
+          embeddedContent = await embeddingContext.embedDashboard({
+            url: embedUrl,
+            container: quicksightContainerEl,
+            width: '100%',
+            height: '100%'
+          });
+        }
+
+        // Handle events
+        embeddedContent.on('load', () => {
+          console.log('[QuickSight] Loaded');
+          showView('quicksight');
+        });
+
+        embeddedContent.on('error', (event) => {
+          console.error('[QuickSight] Error:', event);
+          showError('Failed to load Quick Suite');
+        });
+
+        // Show container while loading
+        showView('quicksight');
+
+      } catch (error) {
+        console.error('[QuickSight] Load error:', error);
+        showError(error.message || 'Failed to load Quick Suite');
+      }
+    }
+
+    // ============================================================
+    // EVENT HANDLERS
+    // ============================================================
+
+    loginFormEl.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      await signInWithEmail(email, password);
+    });
+
+    ssoBtnEl.addEventListener('click', signInWithSSO);
+    logoutBtn.addEventListener('click', signOut);
+    retryBtnEl.addEventListener('click', loadQuickSight);
+
+    // ============================================================
+    // INITIALIZATION
+    // ============================================================
+
+    async function init() {
+      console.log('[App] Initializing...');
+      showLoading('Checking authentication...');
+
+      try {
+        // Initialize Cognito
+        initAuth();
+
+        // Check for existing session
+        const session = await checkAuth();
+
+        if (session) {
+          currentUser = session.user;
+          authTokens = session.tokens;
+          const email = session.user.signInDetails?.loginId || session.user.username;
+          userInfoEl.textContent = email;
+          await loadQuickSight();
+        } else {
+          showView('login');
+        }
+      } catch (error) {
+        console.error('[App] Init error:', error);
+        showView('login');
+      }
+    }
+
+    // Handle OAuth redirect
+    window.Amplify?.Hub?.listen('auth', async ({ payload }) => {
+      if (payload.event === 'signInWithRedirect') {
+        await onAuthSuccess();
+      }
+    });
+
+    // Start app
+    init();
+  </script>
+</body>
+</html>

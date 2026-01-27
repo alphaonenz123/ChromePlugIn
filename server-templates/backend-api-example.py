@@ -1,300 +1,395 @@
 """
-QuickSight Embed URL API - Backend Example
+Quick Suite Backend API with Cognito Integration
 
-This is an example backend implementation (AWS Lambda / Flask / FastAPI)
-that generates embed URLs for the Ask Pinnacle Chrome extension.
+This backend handles:
+1. Cognito JWT token validation
+2. User identity mapping to QuickSight
+3. QuickSight embed URL generation
 
-SECURITY REQUIREMENTS:
-1. This backend MUST be hosted on HTTPS
-2. Implement proper authentication (JWT/OAuth)
-3. Never expose AWS credentials to the client
-4. Validate all inputs
-5. Rate limit API requests
-
-DEPLOYMENT OPTIONS:
+Deploy as:
 - AWS Lambda + API Gateway (recommended)
-- EC2 / ECS with Flask/FastAPI
-- Any HTTPS-capable hosting
+- ECS/Fargate with FastAPI
+- Any Python web framework
+
+Required IAM permissions:
+- quicksight:GenerateEmbedUrlForRegisteredUser
+- quicksight:RegisterUser (if auto-provisioning users)
 """
 
-import boto3
-import json
 import os
-from datetime import datetime, timedelta
+import json
+import boto3
 from functools import wraps
+from datetime import datetime, timedelta
 
-# Flask example (can be adapted for Lambda, FastAPI, etc.)
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+# FastAPI example (easily adaptable to Flask, Lambda, etc.)
+from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import jwt
+from jwt import PyJWKClient
 
-app = Flask(__name__)
-CORS(app, origins=['chrome-extension://*', 'https://your-wrapper-domain.com'])
+app = FastAPI(title="Quick Suite API")
 
-# QuickSight client
-quicksight_client = boto3.client('quicksight', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+# CORS for Chrome extension and hosted app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "chrome-extension://*",
+        "https://quicksuite.yourcompany.com",  # Your hosted app domain
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Configuration
-AWS_ACCOUNT_ID = os.environ.get('AWS_ACCOUNT_ID')
-QUICKSIGHT_NAMESPACE = os.environ.get('QUICKSIGHT_NAMESPACE', 'default')
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+# AWS Configuration
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+AWS_ACCOUNT_ID = os.environ.get("AWS_ACCOUNT_ID")
+
+# Cognito Configuration
+COGNITO_USER_POOL_ID = os.environ.get("COGNITO_USER_POOL_ID")
+COGNITO_APP_CLIENT_ID = os.environ.get("COGNITO_APP_CLIENT_ID")
+COGNITO_REGION = os.environ.get("COGNITO_REGION", AWS_REGION)
+
+# QuickSight Configuration
+QUICKSIGHT_NAMESPACE = os.environ.get("QUICKSIGHT_NAMESPACE", "default")
+QUICKSIGHT_TOPIC_ID = os.environ.get("QUICKSIGHT_TOPIC_ID")  # For curated Q&A
+QUICKSIGHT_DASHBOARD_ID = os.environ.get("QUICKSIGHT_DASHBOARD_ID")  # Optional
 
 # Allowed domains for embedding (must match QuickSight console settings)
 ALLOWED_DOMAINS = [
-    'https://your-wrapper-domain.com',
-    # Add additional allowed domains here
+    os.environ.get("HOSTED_APP_DOMAIN", "https://quicksuite.yourcompany.com"),
 ]
 
+# AWS Clients
+quicksight_client = boto3.client("quicksight", region_name=AWS_REGION)
 
-def validate_auth_token(f):
+# Cognito JWT verification
+COGNITO_ISSUER = f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}"
+jwks_client = PyJWKClient(f"{COGNITO_ISSUER}/.well-known/jwks.json")
+
+
+# ============================================================
+# AUTHENTICATION
+# ============================================================
+
+
+def get_cognito_public_key(token: str):
+    """Get the public key for verifying Cognito JWT"""
+    signing_key = jwks_client.get_signing_key_from_jwt(token)
+    return signing_key.key
+
+
+def verify_cognito_token(token: str) -> dict:
     """
-    Decorator to validate JWT/Bearer token
-    Replace with your authentication logic
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'Missing or invalid authorization header'}), 401
+    Verify Cognito JWT token and return claims.
 
-        token = auth_header.split(' ')[1]
-
-        # TODO: Implement your token validation logic
-        # Example: Verify JWT signature, check expiration, etc.
-        # user_info = verify_jwt_token(token)
-
-        # For demo purposes, we'll use a simple check
-        if not token or len(token) < 10:
-            return jsonify({'error': 'Invalid token'}), 401
-
-        return f(*args, **kwargs)
-    return decorated_function
-
-
-def get_quicksight_user_arn(username: str) -> str:
-    """
-    Construct the QuickSight user ARN.
-    In production, map authenticated user to QuickSight user.
-    """
-    return f'arn:aws:quicksight:{os.environ.get("AWS_REGION", "us-east-1")}:{AWS_ACCOUNT_ID}:user/{QUICKSIGHT_NAMESPACE}/{username}'
-
-
-@app.route('/auth/login', methods=['POST'])
-def login():
-    """
-    Authentication endpoint.
-    Replace with your actual authentication logic.
-    """
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
-
-    # TODO: Implement actual authentication
-    # Example: Validate against your user database, LDAP, etc.
-
-    if not username or not password:
-        return jsonify({'error': 'Username and password required'}), 400
-
-    # Generate JWT token (example - use proper JWT library in production)
-    # token = generate_jwt_token(username)
-
-    # For demo purposes
-    token = f'demo_token_{username}_{datetime.utcnow().timestamp()}'
-
-    return jsonify({
-        'token': token,
-        'expiresIn': 86400,  # 24 hours in seconds
-        'username': username
-    })
-
-
-@app.route('/auth/check', methods=['GET'])
-@validate_auth_token
-def check_auth():
-    """
-    Validate authentication token.
-    """
-    return jsonify({'valid': True, 'message': 'Token is valid'})
-
-
-@app.route('/quicksuite/embed-url', methods=['POST'])
-@validate_auth_token
-def get_embed_url():
-    """
-    Generate QuickSight embed URL for Generative Q&A experience.
-
-    Request body:
-    {
-        "agentArn": "optional - specific agent ARN",
-        "initialQuery": "optional - initial question to ask",
-        "topicId": "optional - curated topic ID for Q&A"
-    }
-
-    Response:
-    {
-        "url": "https://us-east-1.quicksight.aws.amazon.com/embed/..."
-    }
+    The token contains:
+    - sub: Cognito user UUID
+    - email: User's email
+    - cognito:username: Username
+    - cognito:groups: User groups (optional)
     """
     try:
-        data = request.get_json() or {}
+        public_key = get_cognito_public_key(token)
 
-        # Extract parameters
-        agent_arn = data.get('agentArn')
-        initial_query = data.get('initialQuery')
-        topic_id = data.get('topicId')
+        claims = jwt.decode(
+            token,
+            public_key,
+            algorithms=["RS256"],
+            audience=COGNITO_APP_CLIENT_ID,
+            issuer=COGNITO_ISSUER,
+        )
 
-        # Get authenticated user (from your auth system)
-        # For demo, we'll use a default user
-        username = 'demo-user'  # TODO: Get from authenticated session
+        return claims
 
-        # Build the experience configuration for Generative Q&A
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+
+
+async def get_current_user(authorization: str = Header(...)) -> dict:
+    """
+    Dependency to extract and verify user from Authorization header.
+    Returns Cognito claims.
+    """
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization header")
+
+    token = authorization[7:]  # Remove "Bearer " prefix
+    claims = verify_cognito_token(token)
+
+    return claims
+
+
+# ============================================================
+# QUICKSIGHT USER MANAGEMENT
+# ============================================================
+
+
+def get_quicksight_user_arn(email: str) -> str:
+    """
+    Get or create QuickSight user ARN for the given email.
+
+    QuickSight users can be:
+    1. Pre-provisioned in QuickSight console
+    2. Auto-provisioned via RegisterUser API
+    3. Federated via IAM Identity Center
+    """
+    return f"arn:aws:quicksight:{AWS_REGION}:{AWS_ACCOUNT_ID}:user/{QUICKSIGHT_NAMESPACE}/{email}"
+
+
+def ensure_quicksight_user(email: str, identity_type: str = "QUICKSIGHT") -> str:
+    """
+    Ensure user exists in QuickSight, creating if necessary.
+
+    Identity types:
+    - QUICKSIGHT: Native QuickSight user
+    - IAM: IAM user/role
+    - FEDERATED: Federated via SAML/Identity Center
+
+    Returns the user ARN.
+    """
+    user_arn = get_quicksight_user_arn(email)
+
+    try:
+        # Check if user exists
+        quicksight_client.describe_user(
+            AwsAccountId=AWS_ACCOUNT_ID,
+            Namespace=QUICKSIGHT_NAMESPACE,
+            UserName=email
+        )
+        return user_arn
+
+    except quicksight_client.exceptions.ResourceNotFoundException:
+        # User doesn't exist, create them
+        try:
+            quicksight_client.register_user(
+                AwsAccountId=AWS_ACCOUNT_ID,
+                Namespace=QUICKSIGHT_NAMESPACE,
+                IdentityType=identity_type,
+                Email=email,
+                UserName=email,
+                UserRole="READER",  # Or AUTHOR for more permissions
+                SessionName=email
+            )
+            return user_arn
+
+        except quicksight_client.exceptions.ResourceExistsException:
+            # Race condition - user was created between check and create
+            return user_arn
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to provision QuickSight user: {str(e)}"
+            )
+
+
+# ============================================================
+# API ENDPOINTS
+# ============================================================
+
+
+class EmbedUrlResponse(BaseModel):
+    url: str
+    expiresAt: str
+
+
+@app.post("/api/quicksight/embed-url", response_model=EmbedUrlResponse)
+async def get_embed_url(user: dict = Depends(get_current_user)):
+    """
+    Generate QuickSight embed URL for authenticated user.
+
+    The experience type is configured server-side:
+    - GenerativeQnA: For Q&A chat with curated topics
+    - Dashboard: For dashboard viewing
+    - Console: For full QuickSight console access
+    """
+    try:
+        # Extract user email from Cognito claims
+        email = user.get("email") or user.get("cognito:username")
+        if not email:
+            raise HTTPException(status_code=400, detail="Email not found in token")
+
+        # Ensure user exists in QuickSight
+        user_arn = ensure_quicksight_user(email)
+
+        # Build experience configuration
         experience_config = {}
 
-        if topic_id:
-            # Use GenerativeQnA with curated topic
-            experience_config['GenerativeQnA'] = {
-                'InitialTopicId': topic_id
+        if QUICKSIGHT_TOPIC_ID:
+            # Generative Q&A experience with curated topic
+            experience_config["GenerativeQnA"] = {
+                "InitialTopicId": QUICKSIGHT_TOPIC_ID
             }
-        elif agent_arn:
-            # Use specific agent
-            experience_config['QSearchBar'] = {
-                'InitialTopicId': topic_id if topic_id else None
+        elif QUICKSIGHT_DASHBOARD_ID:
+            # Dashboard experience
+            experience_config["Dashboard"] = {
+                "InitialDashboardId": QUICKSIGHT_DASHBOARD_ID
             }
         else:
-            # Default Q experience
-            experience_config['GenerativeQnA'] = {}
+            # Default to Q search bar
+            experience_config["QSearchBar"] = {
+                "InitialTopicId": "default"
+            }
 
-        # Add initial query if provided
-        # Note: InitialQuery support depends on QuickSight version
-        # Check AWS documentation for your region
-
-        # Generate the embed URL
+        # Generate embed URL
         response = quicksight_client.generate_embed_url_for_registered_user(
             AwsAccountId=AWS_ACCOUNT_ID,
-            UserArn=get_quicksight_user_arn(username),
-            SessionLifetimeInMinutes=60,  # URL valid for 60 minutes
+            UserArn=user_arn,
+            SessionLifetimeInMinutes=60,
             AllowedDomains=ALLOWED_DOMAINS,
             ExperienceConfiguration=experience_config
         )
 
-        embed_url = response.get('EmbedUrl')
+        embed_url = response["EmbedUrl"]
+        expires_at = (datetime.utcnow() + timedelta(minutes=60)).isoformat()
 
-        if not embed_url:
-            return jsonify({'error': 'Failed to generate embed URL'}), 500
-
-        return jsonify({
-            'url': embed_url,
-            'expiresAt': (datetime.utcnow() + timedelta(minutes=60)).isoformat()
-        })
+        return EmbedUrlResponse(url=embed_url, expiresAt=expires_at)
 
     except quicksight_client.exceptions.AccessDeniedException as e:
-        app.logger.error(f'QuickSight access denied: {e}')
-        return jsonify({'error': 'Access denied to QuickSight'}), 403
-
+        raise HTTPException(status_code=403, detail="QuickSight access denied")
     except quicksight_client.exceptions.ResourceNotFoundException as e:
-        app.logger.error(f'QuickSight resource not found: {e}')
-        return jsonify({'error': 'QuickSight resource not found'}), 404
-
+        raise HTTPException(status_code=404, detail="QuickSight resource not found")
+    except HTTPException:
+        raise
     except Exception as e:
-        app.logger.error(f'Error generating embed URL: {e}')
-        return jsonify({'error': 'Internal server error'}), 500
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
-@app.route('/quicksuite/topics', methods=['GET'])
-@validate_auth_token
-def list_topics():
-    """
-    List available Q Topics for the dropdown in extension settings.
-
-    Response:
-    {
-        "topics": [
-            {"id": "topic-id-1", "name": "Patient Data Analysis"},
-            {"id": "topic-id-2", "name": "Financial Reports"}
-        ]
-    }
-    """
-    try:
-        response = quicksight_client.list_topics(
-            AwsAccountId=AWS_ACCOUNT_ID
-        )
-
-        topics = [
-            {
-                'id': topic['TopicId'],
-                'name': topic['Name'],
-                'description': topic.get('Description', '')
-            }
-            for topic in response.get('TopicsSummaries', [])
-        ]
-
-        return jsonify({'topics': topics})
-
-    except Exception as e:
-        app.logger.error(f'Error listing topics: {e}')
-        return jsonify({'error': 'Failed to list topics'}), 500
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 
-# Lambda handler (if deploying as AWS Lambda)
+# ============================================================
+# AWS LAMBDA HANDLER
+# ============================================================
+
 def lambda_handler(event, context):
     """
-    AWS Lambda handler for API Gateway integration.
+    AWS Lambda handler for API Gateway.
+
+    Use with API Gateway HTTP API (v2) or REST API (v1).
+    Requires Mangum for ASGI compatibility.
     """
-    from awsgi import response
-    return response(app, event, context)
+    from mangum import Mangum
+    handler = Mangum(app)
+    return handler(event, context)
 
 
-if __name__ == '__main__':
-    # Development server
-    app.run(host='0.0.0.0', port=5000, debug=True)
+# ============================================================
+# LOCAL DEVELOPMENT
+# ============================================================
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
-# =============================================================================
-# AWS CDK / SAM Template Example
-# =============================================================================
+# ============================================================
+# AWS CDK / SAM DEPLOYMENT TEMPLATE
+# ============================================================
+
 """
-# AWS SAM template.yaml example:
+# AWS SAM template.yaml
 
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  CognitoUserPoolId:
+    Type: String
+  CognitoAppClientId:
+    Type: String
+  QuickSightTopicId:
+    Type: String
+  HostedAppDomain:
+    Type: String
+    Default: https://quicksuite.yourcompany.com
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: python3.11
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Ref AWS::AccountId
+        COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+        COGNITO_APP_CLIENT_ID: !Ref CognitoAppClientId
+        QUICKSIGHT_TOPIC_ID: !Ref QuickSightTopicId
+        HOSTED_APP_DOMAIN: !Ref HostedAppDomain
 
 Resources:
   QuickSuiteApi:
     Type: AWS::Serverless::Function
     Properties:
       Handler: backend-api-example.lambda_handler
-      Runtime: python3.11
-      Timeout: 30
+      CodeUri: .
       MemorySize: 256
-      Environment:
-        Variables:
-          AWS_ACCOUNT_ID: !Ref AWS::AccountId
-          QUICKSIGHT_NAMESPACE: default
       Policies:
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
               Action:
                 - quicksight:GenerateEmbedUrlForRegisteredUser
-                - quicksight:ListTopics
+                - quicksight:RegisterUser
+                - quicksight:DescribeUser
               Resource: '*'
       Events:
         EmbedUrl:
-          Type: Api
+          Type: HttpApi
           Properties:
-            Path: /quicksuite/embed-url
+            Path: /api/quicksight/embed-url
             Method: POST
-        Topics:
-          Type: Api
+        Health:
+          Type: HttpApi
           Properties:
-            Path: /quicksuite/topics
+            Path: /api/health
             Method: GET
-        Login:
-          Type: Api
-          Properties:
-            Path: /auth/login
-            Method: POST
-        AuthCheck:
-          Type: Api
-          Properties:
-            Path: /auth/check
-            Method: GET
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+"""
+
+
+# ============================================================
+# COGNITO USER POOL SETUP (reference)
+# ============================================================
+
+"""
+To set up Cognito for Quick Suite:
+
+1. Create User Pool:
+   - Enable email as username
+   - Configure password policy
+   - Add required attributes: email
+
+2. Create App Client:
+   - Enable Cognito User Pool as identity provider
+   - Set callback URLs to your hosted app
+   - Enable authorization code grant
+   - Enable openid, email, profile scopes
+
+3. (Optional) Configure Identity Provider:
+   - Add SAML or OIDC provider for SSO
+   - Map attributes from IdP to Cognito
+
+4. Domain Setup:
+   - Configure Cognito hosted UI domain
+   - Or use custom domain
+
+5. QuickSight Integration:
+   - Users authenticated via Cognito are mapped to QuickSight users
+   - Use RegisterUser API for auto-provisioning
+   - Or pre-provision users in QuickSight console
 """
