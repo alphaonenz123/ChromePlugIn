@@ -167,7 +167,6 @@ body {
   flex-direction: column;
   overflow: hidden;
   background: white;
-  height: 100vh;
 }
 
 .quicksuite-embed iframe {

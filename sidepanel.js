@@ -115,10 +115,6 @@ function showError(message) {
  * Initialize the side panel
  */
 async function initialize() {
-  // FORCE SHOW THE EMBED for testing
-  showView('quicksuite-embed');
-  return; // Stop the rest of the logic
-
   console.log('[SidePanel] Initializing...');
   showView('loading-view');
   updateConnectionStatus('Connecting...');
