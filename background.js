@@ -30,6 +30,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     handleSummaryRequest(request, sendResponse);
     return true; // Will respond asynchronously
   }
+
+  if (request.action === 'checkAuth') {
+    checkAuthStatus(request, sendResponse);
+    return true; // Will respond asynchronously
+  }
+
+  if (request.action === 'login') {
+    handleLogin(request, sendResponse);
+    return true; // Will respond asynchronously
+  }
+
+  if (request.action === 'logout') {
+    handleLogout(request, sendResponse);
+    return true; // Will respond asynchronously
+  }
+
+  if (request.action === 'getQuickSuiteEmbedUrl') {
+    getQuickSuiteEmbedUrl(request, sendResponse);
+    return true; // Will respond asynchronously
+  }
   
   // Unknown action
   console.warn('[Background] Unknown action:', request.action);
@@ -314,3 +334,272 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     }
   }
 });
+
+// ===========================
+// Authentication Management
+// ===========================
+
+/**
+ * Check authentication status for Quick Suite endpoint
+ * Attempts to verify session by calling a health/auth check endpoint
+ */
+async function checkAuthStatus(request, sendResponse) {
+  const { endpoint } = request;
+  
+  try {
+    console.log('[Auth] Checking authentication status for:', endpoint);
+    
+    // Get stored auth token if any
+    const storage = await chrome.storage.sync.get(['authToken', 'authExpiry', 'username']);
+    
+    // Check if token exists and is not expired
+    if (storage.authToken && storage.authExpiry) {
+      const now = Date.now();
+      if (now < storage.authExpiry) {
+        console.log('[Auth] Valid token found, checking with endpoint...');
+        
+        // Verify with endpoint if provided
+        if (endpoint) {
+          const isValid = await verifyTokenWithEndpoint(endpoint, storage.authToken);
+          if (isValid) {
+            sendResponse({
+              success: true,
+              authenticated: true,
+              username: storage.username,
+              expiresAt: storage.authExpiry
+            });
+            return;
+          }
+        } else {
+          // No endpoint to verify, trust local token
+          sendResponse({
+            success: true,
+            authenticated: true,
+            username: storage.username,
+            expiresAt: storage.authExpiry
+          });
+          return;
+        }
+      } else {
+        console.log('[Auth] Token expired, clearing...');
+        await chrome.storage.sync.remove(['authToken', 'authExpiry', 'username']);
+      }
+    }
+    
+    sendResponse({
+      success: true,
+      authenticated: false
+    });
+  } catch (error) {
+    console.error('[Auth] Error checking auth status:', error);
+    sendResponse({
+      success: false,
+      authenticated: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Verify token with endpoint
+ */
+async function verifyTokenWithEndpoint(endpoint, token) {
+  try {
+    // Construct auth check URL from endpoint
+    // Assumes endpoint has a /auth/check or similar endpoint
+    const baseUrl = new URL(endpoint).origin;
+    const authCheckUrl = `${baseUrl}/auth/check`;
+    
+    const response = await fetch(authCheckUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    return response.ok;
+  } catch (error) {
+    console.error('[Auth] Error verifying token:', error);
+    return false;
+  }
+}
+
+/**
+ * Handle login request
+ * Supports token-based authentication
+ */
+async function handleLogin(request, sendResponse) {
+  const { endpoint, username, password, token } = request;
+  
+  try {
+    console.log('[Auth] Login request for endpoint:', endpoint);
+    
+    let authToken = token;
+    let authExpiry = null;
+    
+    // If token not provided, attempt to get it via username/password
+    if (!authToken && username && password) {
+      console.log('[Auth] Attempting login with credentials...');
+      
+      const baseUrl = new URL(endpoint).origin;
+      const loginUrl = `${baseUrl}/auth/login`;
+      
+      const response = await fetch(loginUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, password })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || `Login failed with status ${response.status}`);
+      }
+      
+      const data = await response.json();
+      authToken = data.token || data.access_token || data.accessToken;
+      
+      // Calculate expiry from response
+      if (data.expiresIn) {
+        authExpiry = Date.now() + (data.expiresIn * 1000);
+      } else if (data.expiresAt) {
+        authExpiry = new Date(data.expiresAt).getTime();
+      } else {
+        // Default to 24 hours if not specified
+        authExpiry = Date.now() + (24 * 60 * 60 * 1000);
+      }
+      
+      if (!authToken) {
+        throw new Error('No token received from login endpoint');
+      }
+    } else if (authToken) {
+      // Token provided directly, set default expiry
+      authExpiry = Date.now() + (24 * 60 * 60 * 1000);
+    } else {
+      throw new Error('Either token or username/password must be provided');
+    }
+    
+    // Store auth information securely
+    await chrome.storage.sync.set({
+      authToken: authToken,
+      authExpiry: authExpiry,
+      username: username || 'User'
+    });
+    
+    console.log('[Auth] Login successful, token stored');
+    
+    sendResponse({
+      success: true,
+      authenticated: true,
+      username: username || 'User',
+      expiresAt: authExpiry
+    });
+  } catch (error) {
+    console.error('[Auth] Login error:', error);
+    sendResponse({
+      success: false,
+      authenticated: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Handle logout request
+ */
+async function handleLogout(request, sendResponse) {
+  try {
+    console.log('[Auth] Logout request');
+    
+    // Clear auth data from storage
+    await chrome.storage.sync.remove(['authToken', 'authExpiry', 'username']);
+    
+    console.log('[Auth] Logout successful, auth data cleared');
+    
+    sendResponse({
+      success: true,
+      authenticated: false
+    });
+  } catch (error) {
+    console.error('[Auth] Logout error:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Get Quick Suite embed URL with authentication
+ * This wraps the embed URL fetch with auth token handling
+ */
+async function getQuickSuiteEmbedUrl(request, sendResponse) {
+  const { endpoint, agentArn, initialQuery } = request;
+  
+  try {
+    console.log('[Auth] Fetching Quick Suite embed URL with auth');
+    
+    // Get stored auth token
+    const storage = await chrome.storage.sync.get(['authToken', 'authExpiry']);
+    
+    // Check if token is valid
+    if (!storage.authToken || !storage.authExpiry || Date.now() >= storage.authExpiry) {
+      sendResponse({
+        success: false,
+        requiresAuth: true,
+        error: 'Authentication required. Please login first.'
+      });
+      return;
+    }
+    
+    // Make authenticated request to get embed URL
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${storage.authToken}`
+      },
+      body: JSON.stringify({
+        agentArn,
+        initialQuery
+      })
+    });
+    
+    // Handle authentication errors
+    if (response.status === 401 || response.status === 403) {
+      // Clear invalid token
+      await chrome.storage.sync.remove(['authToken', 'authExpiry', 'username']);
+      
+      sendResponse({
+        success: false,
+        requiresAuth: true,
+        error: 'Session expired. Please login again.'
+      });
+      return;
+    }
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'No error details available');
+      throw new Error(`Request failed with status ${response.status}: ${errorText}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data?.url) {
+      throw new Error('Embed URL response did not include a "url" field');
+    }
+    
+    sendResponse({
+      success: true,
+      url: data.url
+    });
+  } catch (error) {
+    console.error('[Auth] Error fetching embed URL:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}

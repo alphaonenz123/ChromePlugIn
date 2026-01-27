@@ -14,6 +14,9 @@
         <h1>Ask Pinnacle</h1>
       </div>
       <div class="status">
+        <span id="auth-indicator" class="auth-dot logged-out"></span>
+        <span id="auth-text">Not Logged In</span>
+        <span class="status-separator">|</span>
         <span id="status-indicator" class="status-dot offline"></span>
         <span id="status-text">Offline</span>
       </div>
@@ -103,6 +106,58 @@
     <!-- Settings Tab -->
     <div id="settings-tab" class="tab-content">
       <div class="settings-section">
+        <h3>Authentication</h3>
+        <div id="auth-status-section" class="auth-status-box">
+          <p id="auth-status-message">Checking authentication status...</p>
+          <p id="auth-user-info" style="display: none;"></p>
+        </div>
+
+        <div id="login-section">
+          <div class="form-group">
+            <label for="auth-endpoint">Authentication Endpoint</label>
+            <input 
+              type="url" 
+              id="auth-endpoint" 
+              placeholder="https://your-backend.example.com"
+            >
+            <small>Base URL for authentication (e.g., your Quick Suite backend)</small>
+          </div>
+
+          <div class="form-group">
+            <label for="auth-username">Username</label>
+            <input 
+              type="text" 
+              id="auth-username" 
+              placeholder="Enter your username"
+            >
+          </div>
+          
+          <div class="form-group">
+            <label for="auth-password">Password</label>
+            <input 
+              type="password" 
+              id="auth-password" 
+              placeholder="Enter your password"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="auth-token">Or Provide Token Directly</label>
+            <input 
+              type="password" 
+              id="auth-token" 
+              placeholder="Bearer token (optional)"
+            >
+            <small>If you have a pre-generated token, enter it here</small>
+          </div>
+
+          <div class="button-group">
+            <button id="login-button" class="primary-button">Login</button>
+            <button id="logout-button" class="secondary-button" style="display: none;">Logout</button>
+            <button id="check-auth-button" class="secondary-button">Check Status</button>
+          </div>
+        </div>
+
         <h3>API Configuration</h3>
         <div class="form-group">
           <label for="api-url">API Endpoint URL</label>

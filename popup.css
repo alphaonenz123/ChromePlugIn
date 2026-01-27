@@ -70,6 +70,27 @@ body {
   background: #ef4444;
 }
 
+.auth-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.auth-dot.logged-in {
+  background: #74D63C;
+  box-shadow: 0 0 8px #74D63C;
+}
+
+.auth-dot.logged-out {
+  background: #fbbf24;
+}
+
+.status-separator {
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 2px;
+}
+
 /* Tabs */
 .tabs {
   display: flex;
@@ -461,6 +482,49 @@ body {
 
 .form-group input[type="checkbox"] {
   margin-right: 8px;
+}
+
+.auth-status-box {
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.auth-status-box.success {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.auth-status-box.error {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.auth-status-box p {
+  margin: 0;
+  font-size: 13px;
+  color: #374151;
+}
+
+.auth-status-box .success-text {
+  color: #166534;
+}
+
+.auth-status-box .error-text {
+  color: #991b1b;
+}
+
+.button-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.button-group button {
+  flex: 1;
+  margin-top: 0;
 }
 
 .primary-button,
