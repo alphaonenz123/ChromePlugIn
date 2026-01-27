@@ -654,9 +654,9 @@ async function checkAuthStatus() {
  */
 async function handleLogin() {
   const endpoint = document.getElementById('auth-endpoint').value;
-  const username = document.getElementById('auth-username').value;
+  const username = document.getElementById('auth-username').value.trim();
   const password = document.getElementById('auth-password').value;
-  const token = document.getElementById('auth-token').value;
+  const token = document.getElementById('auth-token').value.trim();
   
   if (!endpoint) {
     authStatusSection.classList.add('error');
@@ -681,9 +681,9 @@ async function handleLogin() {
     const response = await chrome.runtime.sendMessage({
       action: 'login',
       endpoint: endpoint,
-      username: username,
+      username: username || null,
       password: password,
-      token: token
+      token: token || null
     });
     
     if (response.success && response.authenticated) {
@@ -693,9 +693,13 @@ async function handleLogin() {
       // Save auth endpoint
       await chrome.storage.sync.set({ authEndpoint: endpoint });
       
-      // Clear password field for security
+      // Clear sensitive fields for security
       document.getElementById('auth-password').value = '';
       document.getElementById('auth-token').value = '';
+      // Clear username only if token was used (to allow re-login with same username)
+      if (token && !username) {
+        document.getElementById('auth-username').value = '';
+      }
       
       // Show success in chat
       document.querySelector('[data-tab="chat"]').click();
@@ -761,6 +765,22 @@ async function loadAuthSettings() {
 }
 
 // Initialize
-loadSettings();
-loadAuthSettings();
-checkAuthStatus();
+(async function initialize() {
+  try {
+    await loadSettings();
+  } catch (error) {
+    console.error('[Init] Error loading settings:', error);
+  }
+  
+  try {
+    await loadAuthSettings();
+  } catch (error) {
+    console.error('[Init] Error loading auth settings:', error);
+  }
+  
+  try {
+    await checkAuthStatus();
+  } catch (error) {
+    console.error('[Init] Error checking auth status:', error);
+  }
+})();

@@ -485,7 +485,7 @@ async function handleLogin(request, sendResponse) {
     await chrome.storage.sync.set({
       authToken: authToken,
       authExpiry: authExpiry,
-      username: username || 'User'
+      username: username || 'Token User'
     });
     
     console.log('[Auth] Login successful, token stored');
@@ -493,7 +493,7 @@ async function handleLogin(request, sendResponse) {
     sendResponse({
       success: true,
       authenticated: true,
-      username: username || 'User',
+      username: username || 'Token User',
       expiresAt: authExpiry
     });
   } catch (error) {
