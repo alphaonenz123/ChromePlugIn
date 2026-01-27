@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ask Pinnacle - Quick Suite Chat</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="sidepanel-container">
+    <div class="header">
+      <div class="header-content">
+        <img src="icon-pinnacle-playful.svg" alt="Ask Pinnacle" class="header-icon">
+        <h1>Quick Suite Chat</h1>
+      </div>
+      <div class="header-actions">
+        <button id="refresh-btn" class="icon-button" title="Refresh Chat">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M13.65 2.35A8 8 0 1 0 16 8h-2a6 6 0 1 1-1.76-4.24l-2.24.53.47 1.97 4.47-1.06.71-3L14.35 2l-.7.35z"/>
+          </svg>
+        </button>
+        <button id="settings-btn" class="icon-button" title="Open Settings">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0-6a4 4 0 1 1 0 8 4 4 0 0 1 0-8zm6.32 5.9l1.1-.64a.5.5 0 0 0 .18-.68l-1-1.73a.5.5 0 0 0-.68-.18l-1.1.64a6 6 0 0 0-1.04-.6V5.5a.5.5 0 0 0-.5-.5h-2a.5.5 0 0 0-.5.5v1.21a6 6 0 0 0-1.04.6l-1.1-.64a.5.5 0 0 0-.68.18l-1 1.73a.5.5 0 0 0 .18.68l1.1.64a6 6 0 0 0 0 1.2l-1.1.64a.5.5 0 0 0-.18.68l1 1.73a.5.5 0 0 0 .68.18l1.1-.64a6 6 0 0 0 1.04.6v1.21a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-1.21a6 6 0 0 0 1.04-.6l1.1.64a.5.5 0 0 0 .68-.18l1-1.73a.5.5 0 0 0-.18-.68l-1.1-.64a6 6 0 0 0 0-1.2z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span id="auth-indicator" class="auth-dot logged-out"></span>
+      <span id="auth-text">Not Logged In</span>
+      <span class="status-separator">|</span>
+      <span id="connection-status">Connecting...</span>
+    </div>
+
+    <!-- Authentication Required View -->
+    <div id="auth-required-view" class="view" hidden>
+      <div class="auth-prompt">
+        <div class="auth-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="#05A3DD">
+            <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+          </svg>
+        </div>
+        <h2>Authentication Required</h2>
+        <p>Please login to access Quick Suite Chat.</p>
+        <button id="goto-login-btn" class="primary-button">Open Extension to Login</button>
+      </div>
+    </div>
+
+    <!-- Loading View -->
+    <div id="loading-view" class="view" hidden>
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+        <p>Loading Quick Suite...</p>
+      </div>
+    </div>
+
+    <!-- Error View -->
+    <div id="error-view" class="view" hidden>
+      <div class="error-message">
+        <div class="error-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="#ef4444">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+          </svg>
+        </div>
+        <h2>Unable to Load</h2>
+        <p id="error-text">An error occurred while loading Quick Suite.</p>
+        <button id="retry-btn" class="primary-button">Retry</button>
+      </div>
+    </div>
+
+    <!-- Configuration Required View -->
+    <div id="config-required-view" class="view" hidden>
+      <div class="config-prompt">
+        <div class="config-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="#fbbf24">
+            <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+          </svg>
+        </div>
+        <h2>Configuration Required</h2>
+        <p>Please configure Quick Suite settings in the extension popup.</p>
+        <button id="goto-config-btn" class="primary-button">Open Extension Settings</button>
+      </div>
+    </div>
+
+    <!-- Quick Suite Embed Container -->
+    <div id="quicksuite-embed" class="quicksuite-embed" hidden>
+      <!-- iframe or SDK embed will be injected here -->
+    </div>
+
+    <!-- Fallback Chat View (when Quick Suite not configured) -->
+    <div id="fallback-chat-view" class="view" hidden>
+      <div class="chat-messages" id="chat-messages">
+        <div class="message bot">
+          <span class="message-icon"><img src="icon-pinnacle-playful.svg" alt="Ask Pinnacle" class="bot-avatar"></span>
+          <div class="message-content">
+            <p>Kia ora! Quick Suite is not configured. You can still chat with me here, or configure Quick Suite in the extension settings.</p>
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-container">
+        <textarea
+          id="chat-input"
+          placeholder="Type your message..."
+          rows="2"
+        ></textarea>
+        <button id="send-button" class="send-button">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

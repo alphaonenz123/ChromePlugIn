@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; frame-src https://*.quicksight.aws.amazon.com/; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline';">
+  <title>Quick Suite Chat</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #f5f5f5;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #embedding-container {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #666;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #e0e0e0;
+      border-top-color: #05A3DD;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #error {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #d32f2f;
+      padding: 24px;
+      text-align: center;
+    }
+
+    #error h2 {
+      margin-bottom: 8px;
+    }
+
+    #error p {
+      color: #666;
+      max-width: 400px;
+    }
+
+    /* QuickSight embed container styles */
+    #quicksight-container {
+      width: 100%;
+      height: 100%;
+      display: none;
+    }
+
+    #quicksight-container iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="embedding-container">
+    <!-- Loading State -->
+    <div id="loading">
+      <div class="spinner"></div>
+      <p>Loading Quick Suite Chat...</p>
+    </div>
+
+    <!-- Error State -->
+    <div id="error">
+      <h2>Unable to Load Chat</h2>
+      <p id="error-message">An error occurred while loading the Quick Suite chat experience.</p>
+    </div>
+
+    <!-- QuickSight Embed Container -->
+    <div id="quicksight-container"></div>
+  </div>
+
+  <!-- Amazon QuickSight Embedding SDK -->
+  <script src="https://unpkg.com/amazon-quicksight-embedding-sdk@2.7.0/dist/quicksight-embedding-js-sdk.min.js"></script>
+
+  <script>
+    /**
+     * QuickSight Wrapper Page
+     *
+     * This page serves as an HTTPS intermediary for embedding QuickSight
+     * in Chrome extensions. It receives the embed URL as a query parameter
+     * and uses the QuickSight SDK to properly embed the chat experience.
+     *
+     * SECURITY NOTES:
+     * 1. This page MUST be hosted on an HTTPS domain
+     * 2. The domain MUST be allowlisted in QuickSight (Manage QuickSight > Domains and Embedding)
+     * 3. The embed URL is validated before use
+     * 4. Only QuickSight domains are accepted
+     */
+
+    const loadingEl = document.getElementById('loading');
+    const errorEl = document.getElementById('error');
+    const errorMessageEl = document.getElementById('error-message');
+    const containerEl = document.getElementById('quicksight-container');
+
+    /**
+     * Show error message
+     * @param {string} message - Error message to display
+     */
+    function showError(message) {
+      loadingEl.style.display = 'none';
+      errorEl.style.display = 'flex';
+      errorMessageEl.textContent = message;
+      console.error('[QuickSight Wrapper] Error:', message);
+    }
+
+    /**
+     * Validate QuickSight URL
+     * @param {string} url - URL to validate
+     * @returns {boolean} - True if valid QuickSight URL
+     */
+    function isValidQuickSightUrl(url) {
+      try {
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname;
+        // Must match *.quicksight.aws.amazon.com pattern
+        const pattern = /^([a-z0-9-]+\.)?quicksight\.aws\.amazon\.com$/;
+        return urlObj.protocol === 'https:' && pattern.test(hostname);
+      } catch {
+        return false;
+      }
+    }
+
+    /**
+     * Get embed URL from query parameters
+     * @returns {string|null} - The embed URL or null if not found/invalid
+     */
+    function getEmbedUrlFromParams() {
+      const params = new URLSearchParams(window.location.search);
+      const encodedUrl = params.get('embedUrl');
+
+      if (!encodedUrl) {
+        return null;
+      }
+
+      try {
+        return decodeURIComponent(encodedUrl);
+      } catch {
+        return null;
+      }
+    }
+
+    /**
+     * Initialize QuickSight embedding
+     */
+    async function initializeQuickSight() {
+      console.log('[QuickSight Wrapper] Initializing...');
+
+      // Get embed URL from query parameters
+      const embedUrl = getEmbedUrlFromParams();
+
+      if (!embedUrl) {
+        showError('No embed URL provided. Please ensure the URL includes the embedUrl parameter.');
+        return;
+      }
+
+      // Validate the URL is from QuickSight
+      if (!isValidQuickSightUrl(embedUrl)) {
+        showError('Invalid embed URL. Only QuickSight URLs (*.quicksight.aws.amazon.com) are accepted.');
+        return;
+      }
+
+      console.log('[QuickSight Wrapper] Embed URL validated, creating embedding context...');
+
+      try {
+        // Create embedding context using QuickSight SDK
+        const embeddingContext = await QuickSightEmbedding.createEmbeddingContext();
+
+        console.log('[QuickSight Wrapper] Embedding context created, embedding chat...');
+
+        // Determine the experience type from URL
+        // GenerativeQnA URLs typically contain 'q/generativeqna' or similar patterns
+        const isGenerativeQnA = embedUrl.includes('generativeqna') ||
+                                 embedUrl.includes('q/') ||
+                                 embedUrl.includes('qsearch');
+
+        let embeddedContent;
+
+        if (isGenerativeQnA) {
+          // Use embedGenerativeQnA for Q&A experiences
+          embeddedContent = await embeddingContext.embedGenerativeQnA({
+            url: embedUrl,
+            container: containerEl,
+            width: '100%',
+            height: '100%'
+          });
+        } else {
+          // Fallback to general embedding
+          // This handles dashboards, visuals, and other QuickSight content
+          embeddedContent = await embeddingContext.embedDashboard({
+            url: embedUrl,
+            container: containerEl,
+            width: '100%',
+            height: '100%',
+            scrolling: 'no'
+          });
+        }
+
+        // Set up event handlers
+        embeddedContent.on('load', () => {
+          console.log('[QuickSight Wrapper] Content loaded successfully');
+          loadingEl.style.display = 'none';
+          containerEl.style.display = 'block';
+        });
+
+        embeddedContent.on('error', (event) => {
+          console.error('[QuickSight Wrapper] Embed error:', event);
+          showError('Failed to load QuickSight content. Please try again.');
+        });
+
+        // Handle resize events
+        embeddedContent.on('resize', (event) => {
+          console.log('[QuickSight Wrapper] Resize event:', event);
+        });
+
+      } catch (error) {
+        console.error('[QuickSight Wrapper] SDK error:', error);
+        showError(`Failed to initialize QuickSight: ${error.message}`);
+      }
+    }
+
+    /**
+     * Alternative: Direct iframe embedding (fallback if SDK fails)
+     * @param {string} embedUrl - The QuickSight embed URL
+     */
+    function fallbackDirectEmbed(embedUrl) {
+      console.log('[QuickSight Wrapper] Using fallback direct iframe embed');
+
+      const iframe = document.createElement('iframe');
+      iframe.src = embedUrl;
+      iframe.style.width = '100%';
+      iframe.style.height = '100%';
+      iframe.style.border = 'none';
+      iframe.allow = 'fullscreen';
+
+      iframe.addEventListener('load', () => {
+        console.log('[QuickSight Wrapper] Iframe loaded');
+        loadingEl.style.display = 'none';
+        containerEl.style.display = 'block';
+      });
+
+      iframe.addEventListener('error', (e) => {
+        console.error('[QuickSight Wrapper] Iframe error:', e);
+        showError('Failed to load QuickSight content.');
+      });
+
+      containerEl.appendChild(iframe);
+    }
+
+    // Initialize when DOM is ready
+    document.addEventListener('DOMContentLoaded', initializeQuickSight);
+
+    // Handle postMessage communication from parent (Chrome extension)
+    window.addEventListener('message', (event) => {
+      // Validate origin - should be from the Chrome extension
+      // Note: chrome-extension:// origins can't be validated by domain
+      // but we validate the embed URL before use
+
+      if (event.data && event.data.action === 'refreshEmbed') {
+        console.log('[QuickSight Wrapper] Received refresh request');
+        window.location.reload();
+      }
+    });
+  </script>
+</body>
+</html>

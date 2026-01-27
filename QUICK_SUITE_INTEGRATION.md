@@ -4,150 +4,275 @@
 
 This document outlines the recommended way to integrate **Amazon Quick Suite Embedded Chat** as the **default agent** inside Ask Pinnacle, plus alternatives if you need more control or cross-agent orchestration.
 
-## Recommendation: Use Quick Suite Embedded Chat as the Default Agent
+## Architecture Overview
 
-**Why this is the best fit**
-- **Default agent with native visuals**: Quick Suite Embedded Chat provides a managed AI assistant that can render charts/tables directly in the chat UI.
-- **Fastest path to production**: You get a consistent, AWS-managed chat experience without custom visualization work.
-- **Least regression risk**: You keep the current Ask Pinnacle chat UX and only replace the chat panel container with a Quick Suite embed.
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Chrome Extension                                 │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────┐  │
+│  │   Popup     │    │ Side Panel  │    │   Background Service    │  │
+│  │  (popup.*)  │    │(sidepanel.*)│    │    (background.js)      │  │
+│  └──────┬──────┘    └──────┬──────┘    └───────────┬─────────────┘  │
+│         │                  │                       │                 │
+│         └──────────────────┴───────────────────────┘                 │
+│                            │                                         │
+└────────────────────────────┼─────────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                 HTTPS Wrapper Page (Recommended)                     │
+│            https://your-domain.com/quicksight-wrapper.html          │
+│                                                                      │
+│    Uses QuickSight Embedding SDK to render chat experience          │
+└─────────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Your Backend                                  │
+│                  (Lambda + API Gateway)                              │
+│                                                                      │
+│  POST /auth/login        → JWT token                                │
+│  GET  /auth/check        → Validate token                           │
+│  POST /quicksuite/embed-url → Generate QuickSight embed URL         │
+│                                                                      │
+│  Calls AWS QuickSight API:                                          │
+│  - GenerateEmbedUrlForRegisteredUser                                │
+│  - ExperienceConfiguration.GenerativeQnA.InitialTopicId             │
+└─────────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Amazon QuickSight                                 │
+│                                                                      │
+│  *.quicksight.aws.amazon.com                                        │
+│  Embedded Generative Q&A Chat Experience                            │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-### High-level flow
-1. **Chrome extension** requests an embed URL from a **backend service** (Lambda/API).
-2. Backend calls `GenerateEmbedUrlForRegisteredUser` for the Quick Suite Chat experience.
-3. Extension loads the URL in an **iframe** and renders the chat in a container (current implementation).
+## Recommendation: Use HTTPS Wrapper Architecture
 
-## Chrome Extension Implementation Plan
+**Why this is required for Chrome extensions:**
 
-### 1) Backend (required)
-Chrome extensions cannot call AWS APIs with credentials directly. Create a small backend (Lambda + API Gateway is typical) to:
-- **Authenticate users** and provide session tokens (see [AUTHENTICATION.md](AUTHENTICATION.md))
+1. **Domain Allowlisting**: AWS QuickSight requires domains to be allowlisted in "Manage QuickSight > Domains and Embedding". The `chrome-extension://` protocol is **not accepted**.
+
+2. **Cookie Partitioning**: Chrome 115+ partitions cookies by top-level site, which can break session handling when embedding directly.
+
+3. **Security**: The wrapper approach provides an additional security layer and enables use of the QuickSight Embedding SDK.
+
+### The Solution
+
+1. **Host an HTTPS wrapper page** on your domain (template provided in `server-templates/quicksight-wrapper.html`)
+2. **Allowlist this domain** in QuickSight Console (Manage QuickSight > Domains and Embedding)
+3. **Configure the extension** to route embeds through this wrapper page
+
+## Implementation Details
+
+### 1) Backend API (Required)
+
+Chrome extensions cannot call AWS APIs with credentials directly. Your backend must:
+
+- **Authenticate users** and provide session tokens
 - Validate the current user/session
-- Call `GenerateEmbedUrlForRegisteredUser`
+- Call `GenerateEmbedUrlForRegisteredUser` with proper experience configuration
 - Return a short-lived **embed URL** to the extension
 
-**Important**: The backend must now include authentication endpoints:
-- `/auth/login` - Returns authentication token
-- `/auth/check` - Validates token
-- Quick Suite endpoint - Requires valid auth token in request headers
+**Required Endpoints:**
 
-**Expected response shape**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/auth/login` | POST | Authenticate user, return JWT token |
+| `/auth/check` | GET | Validate token (Bearer auth) |
+| `/quicksuite/embed-url` | POST | Generate QuickSight embed URL |
+| `/quicksuite/topics` | GET | (Optional) List available Q Topics |
+
+**Request Body for `/quicksuite/embed-url`:**
+
 ```json
 {
-  "url": "https://..."
+  "agentArn": "arn:aws:quicksight:region:account:agent/agent-id",
+  "initialQuery": "Summarize patient history",
+  "topicId": "your-curated-topic-id"
 }
 ```
 
-**Pseudo flow**
-```
-User -> Extension Settings -> Login (username/password or token)
-Extension -> /auth/login (your backend)
-Backend -> validates credentials, returns JWT token
-Extension -> stores token in chrome.storage.sync
-
-Later, when loading Quick Suite:
-Extension -> /embed-url (your backend) with Authorization: Bearer {token}
-Backend -> validates token, calls QuickSight GenerateEmbedUrlForRegisteredUser
-Backend -> returns { url }
-Extension -> Loads embed URL in iframe
-```
-
-### 2) Frontend (extension)
-The extension currently **renders the Quick Suite chat in an iframe** using the short-lived embed URL returned by your backend. This keeps the extension lightweight and avoids bundling the QuickSight SDK. 
-
-**Key implementation details:**
-- **Responsive iframe**: The iframe uses flexbox layout with `min-height: 400px` to ensure proper sizing
-- **Dynamic resizing**: CSS allows the container to adapt to different viewport sizes
-- **Comprehensive logging**: All Quick Suite operations are logged with `[Quick Suite]` prefix for easy debugging
-- **Error handling**: Failed requests show detailed error messages in the status area
-- **Security validation**: URLs are validated to ensure they come from QuickSight domains
-
-**Iframe approach (current implementation)**
-```javascript
-const iframe = document.createElement('iframe');
-iframe.src = embedUrl;
-iframe.title = 'Quick Suite Embedded Chat';
-iframe.allow = 'fullscreen';
-iframe.referrerPolicy = 'no-referrer';
-container.appendChild(iframe);
-```
-
-**SDK alternative (optional)**
-```javascript
-import { createEmbeddingContext } from 'amazon-quicksight-embedding-sdk';
-
-const embedQuickSuiteChat = async (embedUrl) => {
-  const embeddingContext = await createEmbeddingContext();
-  await embeddingContext.embedChat(
-    {
-      url: embedUrl,
-      container: '#chat-container',
-      height: '600px',
-      width: '400px',
-    },
-    {
-      fixedAgentArn: 'arn:aws:quicksight:region:account:agent/agent-id',
-    }
-  );
-};
-```
-
-### 3) Chrome extension manifest CSP changes
-QuickSuite is hosted on AWS domains and must be allowlisted in the extension CSP.
+**Response:**
 
 ```json
-"host_permissions": [
-  "https://*.quicksight.aws.amazon.com/*",
-  "https://YOUR_BACKEND_ENDPOINT/*"
-],
-"content_security_policy": {
-  "extension_pages": "frame-src https://*.quicksight.aws.amazon.com/;"
+{
+  "url": "https://us-east-1.quicksight.aws.amazon.com/embed/..."
 }
 ```
 
-> Note: You must also allowlist the extension ID in the QuickSight embedding settings (Manage QuickSight > Domains and Embedding).
+**Backend Python Example (boto3):**
 
-### 4) Ask Pinnacle settings wiring (implemented)
-The extension settings now include:
-- **Authentication section** with login/logout functionality
-- **Enable Quick Suite** toggle to switch the chat tab into embedded mode
-- **Embed URL endpoint** that the extension POSTs to with `{ agentArn, initialQuery }` and authentication token
-- **Optional agent ARN** and **initial query** inputs
+```python
+import boto3
 
-When enabled and authenticated, Ask Pinnacle:
-1. Checks authentication status
-2. Uses stored auth token for API calls
-3. Hides the built-in chat UI and loads the Quick Suite iframe
-4. Automatically prompts for re-authentication if session expires
+client = boto3.client('quicksight')
 
-**Key features:**
-- **Responsive UI**: The iframe container uses flexbox and proper min-height constraints for optimal display
-- **Comprehensive logging**: All operations are logged to browser console with `[Quick Suite]` prefix
-- **Error handling**: Clear error messages displayed in the UI with detailed logging
-- **Reload capability**: Manual refresh button to reload the embedded chat
-- **Status indicators**: Visual feedback with success/error states
-- **Security validation**: URLs validated to ensure they're from QuickSight domains
+response = client.generate_embed_url_for_registered_user(
+    AwsAccountId='123456789012',
+    UserArn='arn:aws:quicksight:us-east-1:123456789012:user/default/TargetUser',
+    SessionLifetimeInMinutes=60,
+    AllowedDomains=['https://your-wrapper-domain.com'],
+    ExperienceConfiguration={
+        'GenerativeQnA': {
+            'InitialTopicId': 'YOUR_TOPIC_ID'  # Curated Q Topic
+        }
+    }
+)
 
-## Optional: Bedrock Agent Gateway (Recommended if you need cross-agent tools)
+embed_url = response['EmbedUrl']
+```
 
-If Ask Pinnacle must orchestrate **multiple tools** (e.g., EHR retrieval, policy lookup, or knowledge base search), then using a **Bedrock Agent Gateway** gives you controlled tool routing while still embedding Quick Suite as the default UI.
+See `server-templates/backend-api-example.py` for a complete Flask/Lambda example.
 
-### Best-of-both worlds setup
-- **Quick Suite Embedded Chat** remains the default UI.
-- Quick Suite connects to **Bedrock Agent Gateway** as an MCP client.
-- The Gateway exposes your other tools/agents via OpenAPI schemas.
+### 2) HTTPS Wrapper Page
 
-**Benefits**
-- Quick Suite handles chat UI + data insight visuals.
-- Gateway provides a secure tool bus for non-QuickSight actions.
-- Ask Pinnacle keeps one default agent with access to many capabilities.
+Host the provided template at `server-templates/quicksight-wrapper.html` on your HTTPS domain.
 
-## When to avoid Quick Suite Embedded Chat
-If you need a **fully custom chat UI** (custom bubbles, native React UI, or bespoke charts), then Quick Suite won’t work because it must be embedded via iframe. In that case:
-- Build a custom UI in the extension.
-- Use **Bedrock Agent** (InvokeAgent) for the underlying reasoning.
-- Bring your own visualization (D3/Chart.js).
+**Key Features:**
+- Uses QuickSight Embedding SDK v2.7.0
+- Validates embed URL is from QuickSight domain
+- Supports GenerativeQnA and Dashboard experiences
+- Handles resize and error events
 
-## Suggested rollout plan
-1. **Phase 1**: Add Quick Suite as the default agent in Ask Pinnacle’s chat panel.
-2. **Phase 2**: Add Bedrock Agent Gateway only if cross-agent orchestration is required.
-3. **Phase 3**: Keep the existing OpenAI-compatible chat as a fallback when the embed URL is unavailable.
+**Example Wrapper URL Flow:**
+
+```
+Extension → https://your-domain.com/quicksight-wrapper.html
+            ?embedUrl=https%3A%2F%2Fus-east-1.quicksight.aws.amazon.com%2Fembed%2F...
+```
+
+### 3) Chrome Extension Configuration
+
+**manifest.json (already configured):**
+
+```json
+{
+  "permissions": ["sidePanel"],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src https://*.quicksight.aws.amazon.com/ https:;"
+  }
+}
+```
+
+**Settings in Extension:**
+
+| Setting | Description |
+|---------|-------------|
+| Enable Quick Suite | Toggle to use embedded chat |
+| Embed URL Endpoint | Your backend URL (must be HTTPS) |
+| Topic ID | QuickSight Q Topic ID for curated experience |
+| Agent ARN | (Optional) Specific QuickSight agent |
+| Initial Query | (Optional) Starting question |
+| Use HTTPS Wrapper | Enable wrapper approach (recommended) |
+| Wrapper URL | Your hosted wrapper page URL |
+
+### 4) Side Panel (Recommended for Chat)
+
+The extension now supports Chrome's Side Panel API, which provides a **persistent chat experience** that stays open while browsing.
+
+**Benefits over Popup:**
+- Chat session persists across page navigations
+- No loss of context when clicking elsewhere
+- Better UX for conversational interfaces
+
+**To open the Side Panel:**
+- Click "Open Side Panel Chat" in extension settings, or
+- Right-click extension icon → "Open side panel"
+
+## Security Features
+
+### HTTPS Enforcement
+All endpoints must use HTTPS. The extension validates:
+- Backend endpoint URL
+- Wrapper URL (if enabled)
+- Returned QuickSight embed URL
+
+### URL Domain Validation
+Embed URLs are validated using strict regex pattern:
+```javascript
+const pattern = /^([a-z0-9-]+\.)?quicksight\.aws\.amazon\.com$/;
+```
+
+This prevents subdomain attacks like `attacker.quicksight.aws.amazon.com.evil.com`.
+
+### Token Management
+- Tokens stored in `chrome.storage.sync` (encrypted by browser)
+- Automatic expiration checking
+- 401/403 responses trigger token invalidation and re-authentication prompt
+
+## Curating the Q&A Experience
+
+To ensure the chat is "curated" to your specific data:
+
+1. **Create a Q Topic** in QuickSight (Data > Topics)
+2. **Curate the data:**
+   - Exclude irrelevant fields
+   - Rename columns to friendly names
+   - Add named entities and synonyms
+3. **Verify answers** using "Reviewed Answers" feature
+4. **Configure the Topic ID** in extension settings
+
+## Embedding Method Comparison
+
+| Method | Pros | Cons |
+|--------|------|------|
+| **HTTPS Wrapper** (Recommended) | Works with AWS allowlist, SDK support, event callbacks | Requires hosting |
+| **Direct Iframe** | Simpler setup | May fail domain restrictions, no SDK events |
+
+## Files Structure
+
+```
+ChromePlugIn/
+├── sidepanel.html          # Persistent chat panel
+├── sidepanel.js            # Side panel logic
+├── sidepanel.css           # Side panel styles
+├── popup.html              # Extension popup (updated)
+├── popup.js                # Popup logic (updated)
+├── background.js           # Service worker (updated)
+├── manifest.json           # Manifest v3 (updated)
+└── server-templates/
+    ├── quicksight-wrapper.html   # HTTPS wrapper template
+    └── backend-api-example.py    # Backend API example
+```
+
+## Troubleshooting
+
+### "Domain not allowlisted" Error
+1. Go to QuickSight Console > Manage QuickSight > Domains and Embedding
+2. Add your wrapper domain (e.g., `https://your-domain.com`)
+3. Save changes (may take a few minutes to propagate)
+
+### Side Panel Not Opening
+- Requires Chrome 114+
+- Ensure `sidePanel` permission is in manifest.json
+- Try right-clicking extension icon → "Open side panel"
+
+### Authentication Errors
+- Check that your backend returns proper JWT format
+- Verify token expiration handling
+- Check browser console for `[Auth]` prefixed logs
+
+### Embed URL Not Loading
+- Check browser console for `[Quick Suite]` logs
+- Verify HTTPS is used for all URLs
+- Ensure QuickSight user has proper permissions
+
+## Version History
+
+### 1.1.0
+- Added Side Panel support for persistent chat
+- Added HTTPS wrapper architecture
+- Added Topic ID support for curated Q&A
+- Added HTTPS validation for all endpoints
+- Improved URL validation security
+
+### 1.0.0
+- Initial Quick Suite integration
+- Authentication support
+- Basic iframe embedding

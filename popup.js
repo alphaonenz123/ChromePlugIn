@@ -58,7 +58,7 @@ document.querySelectorAll('.tab-button').forEach(button => {
 // Load saved settings
 async function loadSettings() {
   console.log('[Settings] Loading saved configuration...');
-  
+
   const settings = await chrome.storage.sync.get([
     'apiUrl',
     'apiKey',
@@ -68,18 +68,23 @@ async function loadSettings() {
     'quickSuiteEnabled',
     'quickSuiteEndpoint',
     'quickSuiteAgentArn',
-    'quickSuiteInitialQuery'
+    'quickSuiteInitialQuery',
+    'quickSuiteTopicId',
+    'quickSuiteUseWrapper',
+    'quickSuiteWrapperUrl'
   ]);
-  
+
   console.log('[Settings] Loaded configuration:', {
     hasApiUrl: !!settings.apiUrl,
     hasApiKey: !!settings.apiKey,
     model: settings.model,
     autoDetectPms: settings.autoDetectPms,
     quickSuiteEnabled: settings.quickSuiteEnabled,
-    hasQuickSuiteEndpoint: !!settings.quickSuiteEndpoint
+    hasQuickSuiteEndpoint: !!settings.quickSuiteEndpoint,
+    hasTopicId: !!settings.quickSuiteTopicId,
+    useWrapper: settings.quickSuiteUseWrapper
   });
-  
+
   if (settings.apiUrl) {
     document.getElementById('api-url').value = settings.apiUrl;
   }
@@ -107,7 +112,18 @@ async function loadSettings() {
   if (settings.quickSuiteInitialQuery) {
     document.getElementById('quicksuite-initial-query').value = settings.quickSuiteInitialQuery;
   }
-  
+  // New settings for Topic ID and HTTPS wrapper
+  if (settings.quickSuiteTopicId) {
+    document.getElementById('quicksuite-topic-id').value = settings.quickSuiteTopicId;
+  }
+  if (settings.quickSuiteUseWrapper !== undefined) {
+    document.getElementById('quicksuite-use-wrapper').checked = settings.quickSuiteUseWrapper;
+    toggleWrapperUrlVisibility(settings.quickSuiteUseWrapper);
+  }
+  if (settings.quickSuiteWrapperUrl) {
+    document.getElementById('quicksuite-wrapper-url').value = settings.quickSuiteWrapperUrl;
+  }
+
   // Update status indicator
   if (settings.apiKey) {
     updateStatus(true);
@@ -119,6 +135,31 @@ async function loadSettings() {
     await loadQuickSuiteEmbed(settings);
   } else {
     console.log('[Settings] Using standard chat interface');
+  }
+}
+
+/**
+ * Toggle visibility of wrapper URL input based on checkbox
+ * @param {boolean} show - Whether to show the wrapper URL input
+ */
+function toggleWrapperUrlVisibility(show) {
+  const wrapperUrlGroup = document.getElementById('wrapper-url-group');
+  if (wrapperUrlGroup) {
+    wrapperUrlGroup.style.display = show ? 'block' : 'none';
+  }
+}
+
+/**
+ * Validate that a URL uses HTTPS (security requirement)
+ * @param {string} url - The URL to validate
+ * @returns {boolean} - True if URL is HTTPS
+ */
+function isHttpsUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.protocol === 'https:';
+  } catch {
+    return false;
   }
 }
 
@@ -138,32 +179,54 @@ function updateStatus(isOnline) {
 // Save settings
 document.getElementById('save-settings').addEventListener('click', async () => {
   console.log('[Settings] Saving configuration...');
-  
+
+  const quickSuiteEndpoint = document.getElementById('quicksuite-endpoint').value.trim();
+  const quickSuiteWrapperUrl = document.getElementById('quicksuite-wrapper-url').value.trim();
+  const quickSuiteEnabled = document.getElementById('enable-quicksuite').checked;
+  const quickSuiteUseWrapper = document.getElementById('quicksuite-use-wrapper').checked;
+
+  // Validate HTTPS for Quick Suite endpoint
+  if (quickSuiteEnabled && quickSuiteEndpoint && !isHttpsUrl(quickSuiteEndpoint)) {
+    addMessage('Security Error: Quick Suite endpoint must use HTTPS', 'error', '⚠️');
+    return;
+  }
+
+  // Validate HTTPS for wrapper URL if wrapper is enabled
+  if (quickSuiteEnabled && quickSuiteUseWrapper && quickSuiteWrapperUrl && !isHttpsUrl(quickSuiteWrapperUrl)) {
+    addMessage('Security Error: Wrapper URL must use HTTPS', 'error', '⚠️');
+    return;
+  }
+
   const settings = {
     apiUrl: document.getElementById('api-url').value,
     apiKey: document.getElementById('api-key').value,
     model: document.getElementById('model-select').value,
     autoDetectPms: document.getElementById('auto-detect-pms').checked,
     pmsUrl: document.getElementById('pms-url').value,
-    quickSuiteEnabled: document.getElementById('enable-quicksuite').checked,
-    quickSuiteEndpoint: document.getElementById('quicksuite-endpoint').value,
-    quickSuiteAgentArn: document.getElementById('quicksuite-agent-arn').value,
-    quickSuiteInitialQuery: document.getElementById('quicksuite-initial-query').value
+    quickSuiteEnabled: quickSuiteEnabled,
+    quickSuiteEndpoint: quickSuiteEndpoint,
+    quickSuiteAgentArn: document.getElementById('quicksuite-agent-arn').value.trim(),
+    quickSuiteInitialQuery: document.getElementById('quicksuite-initial-query').value.trim(),
+    quickSuiteTopicId: document.getElementById('quicksuite-topic-id').value.trim(),
+    quickSuiteUseWrapper: quickSuiteUseWrapper,
+    quickSuiteWrapperUrl: quickSuiteWrapperUrl
   };
-  
+
   console.log('[Settings] Configuration:', {
     hasApiKey: !!settings.apiKey,
     model: settings.model,
     quickSuiteEnabled: settings.quickSuiteEnabled,
-    hasQuickSuiteEndpoint: !!settings.quickSuiteEndpoint
+    hasQuickSuiteEndpoint: !!settings.quickSuiteEndpoint,
+    hasTopicId: !!settings.quickSuiteTopicId,
+    useWrapper: settings.quickSuiteUseWrapper
   });
-  
+
   await chrome.storage.sync.set(settings);
-  
+
   // Show success message
   addMessage('Settings saved successfully!', 'bot');
   console.log('[Settings] Configuration saved to storage');
-  
+
   // Update status
   if (settings.apiKey) {
     updateStatus(true);
@@ -176,27 +239,53 @@ document.getElementById('save-settings').addEventListener('click', async () => {
   } else {
     console.log('[Settings] Quick Suite disabled, using standard chat');
   }
-  
+
   // Switch back to chat tab
   document.querySelector('[data-tab="chat"]').click();
 });
 
 quickSuiteRefresh.addEventListener('click', async () => {
   console.log('[Quick Suite] Manual refresh requested');
-  
+
   const settings = await chrome.storage.sync.get([
     'quickSuiteEnabled',
     'quickSuiteEndpoint',
     'quickSuiteAgentArn',
-    'quickSuiteInitialQuery'
+    'quickSuiteInitialQuery',
+    'quickSuiteTopicId',
+    'quickSuiteUseWrapper',
+    'quickSuiteWrapperUrl'
   ]);
-  
+
   if (settings.quickSuiteEnabled) {
     console.log('[Quick Suite] Reloading embed...');
     await loadQuickSuiteEmbed(settings);
   } else {
     console.warn('[Quick Suite] Refresh clicked but Quick Suite is not enabled');
     setQuickSuiteStatus('Quick Suite is not enabled. Enable it in Settings.', true);
+  }
+});
+
+// Toggle wrapper URL visibility when checkbox changes
+document.getElementById('quicksuite-use-wrapper').addEventListener('change', (e) => {
+  toggleWrapperUrlVisibility(e.target.checked);
+});
+
+// Open Side Panel button handler
+document.getElementById('open-sidepanel').addEventListener('click', async () => {
+  console.log('[Settings] Opening side panel...');
+  try {
+    // Use chrome.sidePanel API to open the side panel
+    // Note: This requires the sidePanel permission in manifest.json
+    if (chrome.sidePanel && chrome.sidePanel.open) {
+      await chrome.sidePanel.open({ windowId: (await chrome.windows.getCurrent()).id });
+    } else {
+      // Fallback message for older Chrome versions
+      addMessage('Side Panel requires Chrome 114+. Right-click the extension icon and select "Open side panel".', 'bot');
+    }
+  } catch (error) {
+    console.error('[Settings] Failed to open side panel:', error);
+    addMessage('To open the side panel: Right-click the extension icon and select "Open side panel".', 'bot');
   }
 });
 
@@ -379,11 +468,17 @@ async function loadQuickSuiteEmbed(settings) {
   const endpoint = settings.quickSuiteEndpoint;
   const agentArn = settings.quickSuiteAgentArn;
   const initialQuery = settings.quickSuiteInitialQuery;
+  const topicId = settings.quickSuiteTopicId;
+  const useWrapper = settings.quickSuiteUseWrapper;
+  const wrapperUrl = settings.quickSuiteWrapperUrl;
 
   console.log('[Quick Suite] Loading embedded chat', {
     endpoint,
     hasAgentArn: !!agentArn,
-    hasInitialQuery: !!initialQuery
+    hasInitialQuery: !!initialQuery,
+    hasTopicId: !!topicId,
+    useWrapper,
+    hasWrapperUrl: !!wrapperUrl
   });
 
   clearQuickSuiteFrame();
@@ -396,17 +491,34 @@ async function loadQuickSuiteEmbed(settings) {
     return;
   }
 
+  // Security: Validate endpoint is HTTPS
+  if (!isHttpsUrl(endpoint)) {
+    const errorMsg = 'Security Error: Quick Suite endpoint must use HTTPS.';
+    console.error('[Quick Suite]', errorMsg);
+    setQuickSuiteStatus(errorMsg, true);
+    return;
+  }
+
+  // Validate wrapper URL if using wrapper
+  if (useWrapper && wrapperUrl && !isHttpsUrl(wrapperUrl)) {
+    const errorMsg = 'Security Error: Wrapper URL must use HTTPS.';
+    console.error('[Quick Suite]', errorMsg);
+    setQuickSuiteStatus(errorMsg, true);
+    return;
+  }
+
   setQuickSuiteStatus('Loading Quick Suite embed URL...');
 
   try {
     console.log('[Quick Suite] Fetching embed URL from backend:', endpoint);
-    
+
     // Use background script to make authenticated request
     const response = await chrome.runtime.sendMessage({
       action: 'getQuickSuiteEmbedUrl',
       endpoint: endpoint,
       agentArn: agentArn,
-      initialQuery: initialQuery
+      initialQuery: initialQuery,
+      topicId: topicId
     });
     
     // Check if authentication is required
@@ -445,44 +557,73 @@ async function loadQuickSuiteEmbed(settings) {
 
     // Validate URL is from QuickSight domain (security check)
     // Must be exactly *.quicksight.aws.amazon.com to prevent subdomain attacks
+    // Using explicit regex pattern for stricter validation
+    const quicksightPattern = /^([a-z0-9-]+\.)?quicksight\.aws\.amazon\.com$/;
     const urlObj = new URL(embedUrl);
     const hostname = urlObj.hostname;
-    const isValidQuickSightDomain = hostname.endsWith('.quicksight.aws.amazon.com') || 
-                                     hostname === 'quicksight.aws.amazon.com';
-    
-    if (!isValidQuickSightDomain) {
+
+    if (!quicksightPattern.test(hostname)) {
       const errorMsg = `Security: URL must be from QuickSight domain (got: ${hostname})`;
       console.error('[Quick Suite]', errorMsg);
       throw new Error(errorMsg);
     }
-    
+
     console.log('[Quick Suite] URL validated as QuickSight domain:', hostname);
 
+    // Determine embedding method
+    let iframeSrc;
+
+    if (useWrapper && wrapperUrl) {
+      // Use HTTPS wrapper approach (recommended for Chrome extensions)
+      // This routes the embed URL through a hosted HTTPS page
+      console.log('[Quick Suite] Using HTTPS wrapper approach');
+
+      const wrapperWithParams = new URL(wrapperUrl);
+      wrapperWithParams.searchParams.set('embedUrl', encodeURIComponent(embedUrl));
+      iframeSrc = wrapperWithParams.toString();
+
+      console.log('[Quick Suite] Wrapper URL with embed:', iframeSrc);
+    } else {
+      // Direct iframe embedding (may not work with QuickSight domain restrictions)
+      console.log('[Quick Suite] Using direct iframe embedding');
+      console.warn('[Quick Suite] Note: Direct embedding may fail due to QuickSight domain allowlist restrictions. Consider using the HTTPS wrapper approach.');
+      iframeSrc = embedUrl;
+    }
+
     console.log('[Quick Suite] Creating iframe for embedded chat');
-    
+
     // Create iframe following AWS QuickSight embedding guidelines
     const iframe = document.createElement('iframe');
-    iframe.src = embedUrl;
+    iframe.src = iframeSrc;
     iframe.title = 'Quick Suite Embedded Chat';
-    iframe.referrerPolicy = 'no-referrer';
-    
+    // Use strict-origin-when-cross-origin for better compatibility with AWS services
+    iframe.referrerPolicy = useWrapper ? 'strict-origin-when-cross-origin' : 'no-referrer';
+
     // Allow necessary permissions for QuickSight embedded chat
     iframe.allow = 'fullscreen';
-    
+
     // Add load and error event handlers for debugging
     iframe.addEventListener('load', () => {
       console.log('[Quick Suite] Iframe loaded successfully');
-      setQuickSuiteStatus('Quick Suite embedded chat is ready.');
-      
+      if (useWrapper) {
+        setQuickSuiteStatus('Quick Suite embedded chat is ready (via HTTPS wrapper).');
+      } else {
+        setQuickSuiteStatus('Quick Suite embedded chat is ready.');
+      }
+
       // Initialize ResizeObserver to handle dynamic sizing
       initQuickSuiteResizeObserver();
     });
-    
+
     iframe.addEventListener('error', (e) => {
       console.error('[Quick Suite] Iframe error:', e);
-      setQuickSuiteStatus('Failed to load Quick Suite iframe.', true);
+      if (!useWrapper) {
+        setQuickSuiteStatus('Failed to load Quick Suite. Try enabling the HTTPS wrapper in Settings.', true);
+      } else {
+        setQuickSuiteStatus('Failed to load Quick Suite iframe.', true);
+      }
     });
-    
+
     quickSuiteFrame.appendChild(iframe);
     console.log('[Quick Suite] Iframe appended to container');
 
