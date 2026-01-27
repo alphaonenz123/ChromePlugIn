@@ -401,44 +401,51 @@ async function loadQuickSuiteEmbed(settings) {
   try {
     console.log('[Quick Suite] Fetching embed URL from backend:', endpoint);
     
-    // Request embed URL from backend service
-    // Backend should call AWS QuickSight GenerateEmbedUrlForRegisteredUser
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        agentArn,
-        initialQuery
-      })
+    // Use background script to make authenticated request
+    const response = await chrome.runtime.sendMessage({
+      action: 'getQuickSuiteEmbedUrl',
+      endpoint: endpoint,
+      agentArn: agentArn,
+      initialQuery: initialQuery
     });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'No error details available');
-      console.error('[Quick Suite] Backend request failed:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorText
+    
+    // Check if authentication is required
+    if (!response.success && response.requiresAuth) {
+      console.warn('[Quick Suite] Authentication required');
+      setQuickSuiteStatus('Authentication required. Please login in Settings to load Quick Suite.', true);
+      
+      // Show login prompt in status
+      const loginLink = document.createElement('div');
+      loginLink.style.marginTop = '8px';
+      loginLink.innerHTML = '<button class="secondary-button small-button" id="quick-login-btn">Go to Login</button>';
+      quickSuiteStatus.appendChild(loginLink);
+      
+      document.getElementById('quick-login-btn').addEventListener('click', () => {
+        document.querySelector('[data-tab="settings"]').click();
       });
-      throw new Error(`Embed URL request failed with status ${response.status}: ${response.statusText}`);
+      
+      return;
     }
-
-    const data = await response.json();
-    console.log('[Quick Suite] Received embed URL response:', {
-      hasUrl: !!data?.url,
-      urlLength: data?.url?.length
+    
+    if (!response.success) {
+      throw new Error(response.error || 'Failed to get embed URL');
+    }
+    
+    const embedUrl = response.url;
+    console.log('[Quick Suite] Received embed URL:', {
+      hasUrl: !!embedUrl,
+      urlLength: embedUrl?.length
     });
     
     // Validate response format
-    if (!data?.url) {
-      console.error('[Quick Suite] Invalid response format:', data);
+    if (!embedUrl) {
+      console.error('[Quick Suite] Invalid response format');
       throw new Error('Embed URL response did not include a "url" field.');
     }
 
     // Validate URL is from QuickSight domain (security check)
     // Must be exactly *.quicksight.aws.amazon.com to prevent subdomain attacks
-    const urlObj = new URL(data.url);
+    const urlObj = new URL(embedUrl);
     const hostname = urlObj.hostname;
     const isValidQuickSightDomain = hostname.endsWith('.quicksight.aws.amazon.com') || 
                                      hostname === 'quicksight.aws.amazon.com';
@@ -455,7 +462,7 @@ async function loadQuickSuiteEmbed(settings) {
     
     // Create iframe following AWS QuickSight embedding guidelines
     const iframe = document.createElement('iframe');
-    iframe.src = data.url;
+    iframe.src = embedUrl;
     iframe.title = 'Quick Suite Embedded Chat';
     iframe.referrerPolicy = 'no-referrer';
     
@@ -559,5 +566,221 @@ function addLogEntry(text, type = 'info') {
   }
 }
 
+// ===========================
+// Authentication Handling
+// ===========================
+
+const authIndicator = document.getElementById('auth-indicator');
+const authText = document.getElementById('auth-text');
+const authStatusSection = document.getElementById('auth-status-section');
+const authStatusMessage = document.getElementById('auth-status-message');
+const authUserInfo = document.getElementById('auth-user-info');
+const loginButton = document.getElementById('login-button');
+const logoutButton = document.getElementById('logout-button');
+const checkAuthButton = document.getElementById('check-auth-button');
+
+/**
+ * Update authentication status UI
+ */
+function updateAuthStatus(authenticated, username = null, expiresAt = null) {
+  if (authenticated) {
+    authIndicator.classList.remove('logged-out');
+    authIndicator.classList.add('logged-in');
+    authText.textContent = username ? `${username}` : 'Logged In';
+    
+    authStatusSection.classList.remove('error');
+    authStatusSection.classList.add('success');
+    authStatusMessage.textContent = '✅ Authenticated';
+    authStatusMessage.className = 'success-text';
+    
+    if (expiresAt) {
+      const expiryDate = new Date(expiresAt);
+      authUserInfo.textContent = `Session expires: ${expiryDate.toLocaleString()}`;
+      authUserInfo.style.display = 'block';
+    } else {
+      authUserInfo.style.display = 'none';
+    }
+    
+    loginButton.style.display = 'none';
+    logoutButton.style.display = 'inline-block';
+  } else {
+    authIndicator.classList.remove('logged-in');
+    authIndicator.classList.add('logged-out');
+    authText.textContent = 'Not Logged In';
+    
+    authStatusSection.classList.remove('success');
+    authStatusSection.classList.remove('error');
+    authStatusMessage.textContent = 'Not authenticated. Please login to access protected endpoints.';
+    authStatusMessage.className = '';
+    authUserInfo.style.display = 'none';
+    
+    loginButton.style.display = 'inline-block';
+    logoutButton.style.display = 'none';
+  }
+}
+
+/**
+ * Check authentication status
+ */
+async function checkAuthStatus() {
+  console.log('[Auth] Checking authentication status...');
+  
+  const settings = await chrome.storage.sync.get(['authEndpoint', 'quickSuiteEndpoint']);
+  const endpoint = settings.authEndpoint || settings.quickSuiteEndpoint;
+  
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'checkAuth',
+      endpoint: endpoint
+    });
+    
+    if (response.success && response.authenticated) {
+      console.log('[Auth] User is authenticated:', response.username);
+      updateAuthStatus(true, response.username, response.expiresAt);
+    } else {
+      console.log('[Auth] User is not authenticated');
+      updateAuthStatus(false);
+    }
+  } catch (error) {
+    console.error('[Auth] Error checking auth status:', error);
+    authStatusSection.classList.add('error');
+    authStatusMessage.textContent = `Error checking auth: ${error.message}`;
+    authStatusMessage.className = 'error-text';
+  }
+}
+
+/**
+ * Handle login
+ */
+async function handleLogin() {
+  const endpoint = document.getElementById('auth-endpoint').value;
+  const username = document.getElementById('auth-username').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const token = document.getElementById('auth-token').value.trim();
+  
+  if (!endpoint) {
+    authStatusSection.classList.add('error');
+    authStatusMessage.textContent = '❌ Please enter an authentication endpoint';
+    authStatusMessage.className = 'error-text';
+    return;
+  }
+  
+  if (!token && (!username || !password)) {
+    authStatusSection.classList.add('error');
+    authStatusMessage.textContent = '❌ Please enter username/password or a token';
+    authStatusMessage.className = 'error-text';
+    return;
+  }
+  
+  loginButton.textContent = 'Logging in...';
+  loginButton.disabled = true;
+  authStatusMessage.textContent = 'Authenticating...';
+  authStatusSection.classList.remove('error', 'success');
+  
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'login',
+      endpoint: endpoint,
+      username: username || null,
+      password: password,
+      token: token || null
+    });
+    
+    if (response.success && response.authenticated) {
+      console.log('[Auth] Login successful');
+      updateAuthStatus(true, response.username, response.expiresAt);
+      
+      // Save auth endpoint
+      await chrome.storage.sync.set({ authEndpoint: endpoint });
+      
+      // Clear sensitive fields for security
+      document.getElementById('auth-password').value = '';
+      document.getElementById('auth-token').value = '';
+      // Clear username only if token was used (to allow re-login with same username)
+      if (token && !username) {
+        document.getElementById('auth-username').value = '';
+      }
+      
+      // Show success in chat
+      document.querySelector('[data-tab="chat"]').click();
+      addMessage(`✅ Successfully logged in as ${response.username}!`, 'bot', '✅');
+    } else {
+      console.error('[Auth] Login failed:', response.error);
+      authStatusSection.classList.add('error');
+      authStatusMessage.textContent = `❌ Login failed: ${response.error}`;
+      authStatusMessage.className = 'error-text';
+    }
+  } catch (error) {
+    console.error('[Auth] Login error:', error);
+    authStatusSection.classList.add('error');
+    authStatusMessage.textContent = `❌ Login error: ${error.message}`;
+    authStatusMessage.className = 'error-text';
+  } finally {
+    loginButton.textContent = 'Login';
+    loginButton.disabled = false;
+  }
+}
+
+/**
+ * Handle logout
+ */
+async function handleLogout() {
+  logoutButton.textContent = 'Logging out...';
+  logoutButton.disabled = true;
+  
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'logout'
+    });
+    
+    if (response.success) {
+      console.log('[Auth] Logout successful');
+      updateAuthStatus(false);
+      
+      // Show success in chat
+      document.querySelector('[data-tab="chat"]').click();
+      addMessage('✅ Successfully logged out', 'bot', '✅');
+    } else {
+      console.error('[Auth] Logout failed:', response.error);
+    }
+  } catch (error) {
+    console.error('[Auth] Logout error:', error);
+  } finally {
+    logoutButton.textContent = 'Logout';
+    logoutButton.disabled = false;
+  }
+}
+
+// Event listeners for auth buttons
+loginButton.addEventListener('click', handleLogin);
+logoutButton.addEventListener('click', handleLogout);
+checkAuthButton.addEventListener('click', checkAuthStatus);
+
+// Load auth endpoint from settings
+async function loadAuthSettings() {
+  const settings = await chrome.storage.sync.get(['authEndpoint']);
+  if (settings.authEndpoint) {
+    document.getElementById('auth-endpoint').value = settings.authEndpoint;
+  }
+}
+
 // Initialize
-loadSettings();
+(async function initialize() {
+  try {
+    await loadSettings();
+  } catch (error) {
+    console.error('[Init] Error loading settings:', error);
+  }
+  
+  try {
+    await loadAuthSettings();
+  } catch (error) {
+    console.error('[Init] Error loading auth settings:', error);
+  }
+  
+  try {
+    await checkAuthStatus();
+  } catch (error) {
+    console.error('[Init] Error checking auth status:', error);
+  }
+})();

@@ -22,11 +22,13 @@ The extension includes intelligent automation for common Patient Management Syst
 6. **Update Records** - Identifies editable fields for record updates
 
 ### 🎯 Smart Features
+- **Authentication Support** - Secure login for protected endpoints and Quick Suite
 - Automatic PMS page detection
 - Visual highlighting of affected elements
 - Action logging and history
 - Secure API key storage
 - Cross-browser compatibility (Chrome & Edge)
+- Session management with automatic expiration handling
 
 ## Installation
 
@@ -43,14 +45,22 @@ The extension includes intelligent automation for common Patient Management Syst
 
 1. Click the extension icon in your browser toolbar
 2. Navigate to the "Settings" tab
-3. Configure your API settings:
+3. **Configure Authentication** (for Quick Suite and protected endpoints):
+   - See [AUTHENTICATION.md](AUTHENTICATION.md) for detailed authentication setup
+   - Enter your authentication endpoint
+   - Login with username/password or token
+4. Configure your API settings:
    - **API Endpoint URL**: Enter your chatbot API URL (default: OpenAI)
    - **API Key**: Enter your API key (stored securely)
    - **Model**: Select the AI model to use
-4. Configure RPA settings:
+5. Configure RPA settings:
    - **Auto-detect PMS**: Enable automatic Patient Management System detection
    - **PMS URL Pattern**: Set URL patterns for your PMS (e.g., `*://pms.hospital.com/*`)
-5. Click "Save Settings"
+6. **Configure Quick Suite** (optional):
+   - Enable Quick Suite embedded chat as default agent
+   - Enter Quick Suite embed URL endpoint
+   - Configure optional Agent ARN and initial query
+7. Click "Save Settings"
 
 ## Usage
 
@@ -81,6 +91,29 @@ Ask Pinnacle responds in a friendly, helpful tone that makes healthcare tasks fe
    - 🔍 **Search Patient** - Focuses the search field
    - ✏️ **Update Records** - Highlights editable fields
 5. Monitor the action log for results
+
+### Using Authentication & Quick Suite
+
+The extension now supports authentication for protected endpoints and Amazon Quick Suite embedded chat.
+
+**Quick Start:**
+1. Navigate to the "Settings" tab
+2. Scroll to the "Authentication" section
+3. Enter your authentication endpoint URL
+4. Login with username/password or a direct token
+5. Enable Quick Suite in the "Quick Suite (Default Agent)" section
+6. Your session will be maintained and automatically used for API calls
+
+**For detailed instructions**, see:
+- [AUTHENTICATION.md](AUTHENTICATION.md) - Complete authentication guide
+- [QUICK_SUITE_INTEGRATION.md](QUICK_SUITE_INTEGRATION.md) - Quick Suite integration details
+
+**Key Features:**
+- 🔐 Secure token storage with Chrome sync
+- ⏱️ Automatic session expiration handling
+- 🔄 Token refresh and re-authentication prompts
+- ✅ Visual authentication status in header
+- 🚀 Seamless Quick Suite embedded chat integration
 
 ## API Configuration
 
@@ -127,7 +160,9 @@ ChromePlugIn/
 │   ├── icon32.png
 │   ├── icon48.png
 │   └── icon128.png
+├── AUTHENTICATION.md      # Authentication setup guide
 ├── QUICK_SUITE_INTEGRATION.md # Guide for Amazon Quick Suite embedded chat
+├── SECURITY.md            # Security documentation
 └── README.md              # Documentation
 ```
 
@@ -148,6 +183,8 @@ ChromePlugIn/
 - Handles API communication
 - Manages extension state
 - Processes messages from popup and content scripts
+- **Authentication management**: Login, logout, session verification
+- **Token handling**: Secure storage and automatic expiration checking
 
 #### Content Script (content.js)
 - Injected into all web pages
@@ -157,12 +194,32 @@ ChromePlugIn/
 
 ## Security
 
+- **Authentication tokens** are stored securely using Chrome's `chrome.storage.sync` API (encrypted by Chrome)
+- **Passwords are never stored** - only authentication tokens are retained
 - API keys are stored securely using Chrome's `chrome.storage.sync` API
 - No sensitive data is transmitted to third parties except your configured API endpoint
 - All API communication uses HTTPS
-- API keys are never logged or exposed in the console
+- API keys and tokens are never logged or exposed in the console
+- **Session expiration** is tracked and enforced automatically
+- **Token validation** occurs before sensitive operations
+- For more details, see [AUTHENTICATION.md](AUTHENTICATION.md) and [SECURITY.md](SECURITY.md)
 
 ## Troubleshooting
+
+### Authentication Issues
+
+**Login fails or session expired:**
+1. Verify authentication endpoint URL is correct
+2. Check username/password or token validity
+3. Ensure backend authentication service is running
+4. Review [AUTHENTICATION.md](AUTHENTICATION.md) for detailed troubleshooting
+5. Check browser console for detailed error messages
+
+**Quick Suite won't load:**
+1. Ensure you're logged in (check auth status in header)
+2. Verify Quick Suite endpoint is configured
+3. Check if session has expired - try re-logging in
+4. Review [QUICK_SUITE_INTEGRATION.md](QUICK_SUITE_INTEGRATION.md)
 
 ### Chatbot not responding
 1. Check that you've configured a valid API key in Settings
